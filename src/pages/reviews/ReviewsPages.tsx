@@ -24,8 +24,8 @@ export function ReviewsHome() {
     <>
       <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
         {TILES.map((t) => (
-          <Link key={t.to} to={t.to} className="no-underline text-ink">
-            <Card className="flex items-center gap-3 cursor-pointer hover:border-faint">
+          <Link key={t.to} to={t.to} className="no-underline text-ink block h-full">
+            <Card className="flex items-center gap-3 cursor-pointer hover:border-faint h-full">
               <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px] font-bold ${tileTone[t.tone]}`}>
                 {t.icon}
               </div>
