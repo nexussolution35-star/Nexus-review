@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import type { ComponentType } from "react";
+import { ClockIcon, GlobeIcon, RotateIcon, StarIcon, UsersIcon } from "../components/icons";
 import { Card } from "../components/ui";
 import { useStore } from "../data/store";
 import { TODAY } from "../data/generate";
@@ -55,7 +57,7 @@ export function Dashboard() {
 
   const groups: {
     label: string;
-    icon: string;
+    icon: ComponentType<{ className?: string }>;
     tone: string;
     to: string;
     action: string;
@@ -63,7 +65,7 @@ export function Dashboard() {
   }[] = [
     {
       label: "Reviews",
-      icon: "★",
+      icon: StarIcon,
       tone: "amber",
       to: "/reviews",
       action: "See all reviews",
@@ -81,7 +83,7 @@ export function Dashboard() {
     },
     {
       label: "Waiting",
-      icon: "◷",
+      icon: ClockIcon,
       tone: "blue",
       to: "/reviews/sent",
       action: "See who is waiting",
@@ -93,7 +95,7 @@ export function Dashboard() {
     },
     {
       label: "Google",
-      icon: "G",
+      icon: GlobeIcon,
       tone: "green",
       to: "/reviews/google",
       action: "See Google reviews",
@@ -105,7 +107,7 @@ export function Dashboard() {
     },
     {
       label: "Win back",
-      icon: "↺",
+      icon: RotateIcon,
       tone: "red",
       to: "/win-back",
       action: "Open win back",
@@ -121,7 +123,7 @@ export function Dashboard() {
     },
     {
       label: "Contacts",
-      icon: "☺",
+      icon: UsersIcon,
       tone: "blue",
       to: "/customers",
       action: "Open contact list",
@@ -144,9 +146,9 @@ export function Dashboard() {
             <Card className="h-full flex flex-col hover:border-faint transition-colors">
               <div className="flex items-center gap-2.5 mb-2.5">
                 <div
-                  className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-[15px] font-bold ${toneCls[g.tone]}`}
+                  className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${toneCls[g.tone]}`}
                 >
-                  {g.icon}
+                  <g.icon className="w-4 h-4" />
                 </div>
                 <p className="m-0 text-[13.5px] font-bold text-ink">{g.label}</p>
               </div>

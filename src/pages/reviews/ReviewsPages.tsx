@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom";
+import { ClockIcon, GlobeIcon, ThumbsUpIcon, WrenchIcon } from "../../components/icons";
 import { Avatar, Card, EmptyState, ListRow, Pill, Stars } from "../../components/ui";
 import { useReviewsInRange, useStore } from "../../data/store";
 import { fmtDate } from "../../lib/format";
 import { ReviewListCard } from "./ReviewList";
 
 const TILES = [
-  { to: "/reviews/sent", icon: "◷", tone: "amber", label: "Sent", text: "Diners we've asked. Waiting to hear back." },
-  { to: "/reviews/good", icon: "👍", tone: "green", label: "Good", text: "Happy diners with 4 or 5 stars." },
-  { to: "/reviews/bad", icon: "🔧", tone: "red", label: "Bad", text: "Unhappy diners. Things for your team to fix." },
-  { to: "/reviews/google", icon: "G", tone: "blue", label: "Google reviews", text: "Reviews the public can see on Google." },
+  { to: "/reviews/sent", icon: ClockIcon, tone: "amber", label: "Sent", text: "Diners we've asked. Waiting to hear back." },
+  { to: "/reviews/good", icon: ThumbsUpIcon, tone: "green", label: "Good", text: "Happy diners with 4 or 5 stars." },
+  { to: "/reviews/bad", icon: WrenchIcon, tone: "red", label: "Bad", text: "Unhappy diners. Things for your team to fix." },
+  { to: "/reviews/google", icon: GlobeIcon, tone: "blue", label: "Google reviews", text: "Reviews the public can see on Google." },
 ] as const;
 
 const tileTone: Record<string, string> = {
@@ -26,8 +27,8 @@ export function ReviewsHome() {
         {TILES.map((t) => (
           <Link key={t.to} to={t.to} className="no-underline text-ink block h-full">
             <Card className="flex items-center gap-3 cursor-pointer hover:border-faint h-full">
-              <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-[15px] font-bold ${tileTone[t.tone]}`}>
-                {t.icon}
+              <div className={`w-9 h-9 rounded-lg shrink-0 flex items-center justify-center ${tileTone[t.tone]}`}>
+                <t.icon />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="m-0 text-[13.5px] font-bold">{t.label}</p>
@@ -53,8 +54,8 @@ export function SentPage() {
       {pendingInvites.length ? (
         pendingInvites.map((p, i) => (
           <ListRow key={p.id} first={i === 0} className="items-center">
-            <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center bg-warnsoft text-warn text-sm">
-              ◷
+            <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center bg-warnsoft text-warn">
+              <ClockIcon className="w-4 h-4" />
             </div>
             <div className="flex-1">
               <p className="m-0 text-[13px] font-semibold">
