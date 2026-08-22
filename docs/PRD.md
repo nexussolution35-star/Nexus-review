@@ -166,7 +166,8 @@ Requirement: the Google reviews menu shows the tenant's FULL, auto-updating revi
 history. DECIDED: build on the **Google Business Profile API with per-tenant OAuth
 consent** (tenant connects their Google Business account during onboarding). Sync on a
 schedule into `google_reviews_cache`. While approval is pending, use the Places API
-(place ID only, 5 most recent reviews) as a temporary display.
+(place ID only, 5 most recent reviews) as a temporary display, polled every 30 minutes
+into the same cache.
 
 **Getting GBP API access (what Nexus must do once, as the software provider):**
 1. Google Cloud project + note its Project Number; create an Organization account.
