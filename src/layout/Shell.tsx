@@ -80,7 +80,7 @@ export function Shell() {
       <aside className="w-52 shrink-0 bg-surface border-r border-line px-2.5 py-5 sticky top-0 h-screen overflow-y-auto">
         <div className="px-2.5 pb-4 mb-3 border-b border-line">
           <p className="text-sm font-bold m-0">Rave</p>
-          <p className="text-[11px] text-faint mt-0.5">Powered by Nexus Solutions</p>
+          <p className="text-[11px] text-faint mt-0.5">Powered by Nexus Solution</p>
         </div>
         {NAV.map((n) => (
           <div key={n.to}>
