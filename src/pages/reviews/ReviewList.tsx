@@ -57,18 +57,10 @@ export function ReviewListCard({
                 </p>
               )}
             </div>
-            {googleMode ? (
-              <Pill text="On Google" tone="green" />
-            ) : r.route === "good" ? (
-              <Pill
-                text={r.googleStatus === "posted" ? "Posted on Google" : "Invited to Google"}
-                tone={r.googleStatus === "posted" ? "green" : "blue"}
-              />
+            {googleMode || r.googleStatus === "posted" ? (
+              <Pill text="Posted on Google" tone="green" />
             ) : (
-              <Pill
-                text={r.status === "fixed" ? "Fixed" : r.status === "fixing" ? "Being fixed" : "New"}
-                tone={r.status === "fixed" ? "green" : r.status === "fixing" ? "amber" : "red"}
-              />
+              <Pill text={`Review given to ${staffFirst(r.staffId)}`} tone="blue" />
             )}
           </ListRow>
         ))
