@@ -84,6 +84,12 @@ export function Shell() {
         .sort((a, b) => b.length - a.length)[0] ?? "/";
   const [title, subtitle] = TITLES[titleKey];
 
+  // Placeholder until Supabase Auth is wired. It will become
+  // supabase.auth.signOut() then a redirect to the login page.
+  const signOut = () => {
+    window.location.assign("/");
+  };
+
   const linkCls = (isActive: boolean, child: boolean) =>
     `block rounded-lg mb-0.5 cursor-pointer text-[13px] ${
       child ? "py-1.5 pl-7 pr-2.5" : "py-2 px-2.5"
@@ -97,11 +103,12 @@ export function Shell() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-52 shrink-0 bg-surface border-r border-line px-2.5 py-5 sticky top-0 h-screen overflow-y-auto">
+      <aside className="w-52 shrink-0 bg-surface border-r border-line px-2.5 py-5 sticky top-0 h-screen overflow-y-auto flex flex-col">
         <div className="px-2.5 pb-4 mb-3 border-b border-line">
           <p className="text-sm font-bold m-0">Rave</p>
           <p className="text-[11px] text-faint mt-0.5">Powered by Nexus Solution</p>
         </div>
+        <nav className="flex-1">
         {NAV.map((n) => {
           const chevron = n.children && (
             <svg
@@ -156,6 +163,28 @@ export function Shell() {
           </div>
           );
         })}
+        </nav>
+        <button
+          type="button"
+          onClick={signOut}
+          className="mt-3 pt-3 border-t border-line flex items-center gap-2 py-2 px-2.5 rounded-lg text-[13px] font-medium text-sub hover:bg-canvas w-full text-left"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-4 h-4 text-faint"
+            aria-hidden="true"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Sign out
+        </button>
       </aside>
 
       <main className="flex-1 min-w-0 px-4 md:px-7 py-5">
