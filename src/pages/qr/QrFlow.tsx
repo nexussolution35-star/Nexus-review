@@ -64,9 +64,11 @@ export function QrFlow() {
     <PhoneFrame>
       {step === 1 && (
         <>
-          <p className="text-lg font-bold m-0">Hi! Thanks for visiting {RESTAURANT_NAME}.</p>
+          <p className="text-lg font-bold m-0">How did we do today?</p>
           <p className="text-[14px] text-sub mt-1.5">
-            Tell us who you are so {member.firstName} knows who to thank.
+            Your visit matters to us at {RESTAURANT_NAME}. Add your name and number, then leave a
+            quick rating. It takes 30 seconds, and {member.firstName} would love to know how they
+            did.
           </p>
           <div className="mt-4 grid gap-3">
             <div>
@@ -90,7 +92,7 @@ export function QrFlow() {
             </div>
           </div>
           <p className="text-[11.5px] text-faint mt-3 leading-relaxed">
-            We may WhatsApp you about your visit and occasional offers. Reply STOP any time to opt
+            We will only WhatsApp you about this visit and the odd treat. Reply STOP any time to opt
             out.
           </p>
           {err && <ErrorText>{err}</ErrorText>}
@@ -103,7 +105,7 @@ export function QrFlow() {
             }}
             className={`${primaryBtnCls} w-full mt-4 !py-3`}
           >
-            Next
+            Rate my visit
           </button>
         </>
       )}
