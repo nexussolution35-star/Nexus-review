@@ -58,8 +58,8 @@ export function SentPage() {
   );
 
   const statusOf = (i: (typeof reviewInvites)[number]) => {
-    if (i.reviewedAt) return { label: "Reviewed", tone: "green" as const };
-    if (i.engagedAt) return { label: "Name and number in", tone: "green" as const };
+    if (i.reviewedAt) return { label: "Left a rating", tone: "green" as const };
+    if (i.engagedAt) return { label: "Opened review link", tone: "green" as const };
     if (i.followUp2At) return { label: "Reminded twice", tone: "amber" as const };
     if (i.followUp1At) return { label: "Reminded once", tone: "amber" as const };
     return { label: "Waiting", tone: "blue" as const };
