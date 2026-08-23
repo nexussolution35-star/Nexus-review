@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { DateRangeControl } from "../components/DateRangeControl";
 
@@ -57,6 +58,12 @@ const TITLES: Record<string, [string, string]> = {
 
 export function Shell() {
   const { pathname } = useLocation();
+  // Sections with children collapse; the one holding the current page opens
+  // automatically, and a manual toggle overrides that until the route changes.
+  const [toggled, setToggled] = useState<Record<string, boolean | undefined>>({});
+  useEffect(() => setToggled({}), [pathname]);
+  const isOpen = (n: NavItem) =>
+    toggled[n.to] !== undefined ? !!toggled[n.to] : pathname.startsWith(n.to);
   const titleKey = TITLES[pathname]
     ? pathname
     : Object.keys(TITLES)
@@ -84,19 +91,41 @@ export function Shell() {
         </div>
         {NAV.map((n) => (
           <div key={n.to}>
-            <NavLink to={n.to} end={n.end ?? !!n.children} className={({ isActive }) => linkCls(isActive, false)}>
+            <NavLink
+              to={n.to}
+              end={n.end ?? !!n.children}
+              onClick={() => n.children && setToggled((t) => ({ ...t, [n.to]: !isOpen(n) }))}
+              className={({ isActive }) =>
+                `${linkCls(isActive, false)} flex items-center justify-between`
+              }
+            >
               {n.label}
+              {n.children && (
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`w-3.5 h-3.5 text-faint transition-transform ${isOpen(n) ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              )}
             </NavLink>
-            {n.children?.map((c) => (
-              <NavLink
-                key={c.to}
-                to={c.to}
-                end={c.to === n.to}
-                className={({ isActive }) => linkCls(isActive, true)}
-              >
-                {c.label}
-              </NavLink>
-            ))}
+            {n.children && isOpen(n) &&
+              n.children.map((c) => (
+                <NavLink
+                  key={c.to}
+                  to={c.to}
+                  end={c.to === n.to}
+                  className={({ isActive }) => linkCls(isActive, true)}
+                >
+                  {c.label}
+                </NavLink>
+              ))}
           </div>
         ))}
       </aside>
