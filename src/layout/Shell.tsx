@@ -41,6 +41,7 @@ const NAV: NavItem[] = [
   {
     to: "/statistics",
     label: "Statistics",
+    section: true,
     children: [
       { to: "/statistics", label: "Overview" },
       { to: "/statistics/reviews", label: "Reviews" },
