@@ -9,6 +9,7 @@ import type {
   GooglePublicReview,
   PendingInvite,
   Review,
+  ReviewInvite,
   StaffMember,
   WebhookSend,
   WinbackEntry,
@@ -39,6 +40,7 @@ interface StoreValue {
   winbackEntries: WinbackEntry[];
   googleReviews: GooglePublicReview[];
   webhookSends: WebhookSend[];
+  reviewInvites: ReviewInvite[];
   range: DateRange;
   setRange: (r: DateRange) => void;
   resetRange: () => void;
@@ -68,6 +70,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [winbackEntries, setWinbackEntries] = useState<WinbackEntry[]>(SEED.winbackEntries);
   const [googleReviews] = useState<GooglePublicReview[]>(SEED.googleReviews);
   const [webhookSends, setWebhookSends] = useState<WebhookSend[]>([]);
+  const [reviewInvites, setReviewInvites] = useState<ReviewInvite[]>(SEED.reviewInvites);
   const [range, setRange] = useState<DateRange>(FULL_RANGE);
 
   const resetRange = useCallback(() => setRange(FULL_RANGE), []);
@@ -193,6 +196,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (contactId: number, staffId: number | null) => {
       const reviewCampaign = campaigns.find((c) => c.kind === "review");
       if (!reviewCampaign) return;
+      const contact = contacts.find((c) => c.id === contactId);
+      const today = iso(new Date());
       setWebhookSends((ws) => [
         {
           id: ws.length + 1,
@@ -203,10 +208,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         },
         ...ws,
       ]);
-      recordActivity(contactId);
+      // Log a review invite we can track by phone (PRD §5).
+      setReviewInvites((is) => [
+        {
+          id: Math.max(0, ...is.map((i) => i.id)) + 1,
+          contactId,
+          phone: contact?.phone ?? "",
+          staffId,
+          sentAt: today,
+          followUp1At: null,
+          followUp2At: null,
+          engagedAt: null,
+          reviewedAt: null,
+        },
+        ...is,
+      ]);
     },
-    [campaigns, recordActivity]
+    [campaigns, contacts]
   );
+
+  /**
+   * A name and number came back. Close the newest open review invite that
+   * matches by phone (PRD §5): mark it engaged, and reviewed if a rating came
+   * with it. This is what stops the 48 hour follow up sequence.
+   */
+  const engageInviteByPhone = useCallback((phone: string, reviewed: boolean) => {
+    const norm = normalizePhone(phone);
+    const today = iso(new Date());
+    setReviewInvites((is) => {
+      const openIdx = is.findIndex(
+        (i) => normalizePhone(i.phone) === norm && !i.engagedAt
+      );
+      if (openIdx === -1) return is;
+      return is.map((i, idx) =>
+        idx === openIdx
+          ? { ...i, engagedAt: today, reviewedAt: reviewed ? today : i.reviewedAt }
+          : i
+      );
+    });
+  }, []);
 
   const submitQrReview = useCallback(
     (s: QrSubmission): { review: Review; contact: Contact } => {
@@ -229,9 +269,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         createdAt: iso(new Date()),
       };
       setReviews((rs) => [review, ...rs]);
+      // Name and number came back with a rating: close the matching invite.
+      engageInviteByPhone(contact.phone, true);
       return { review, contact };
     },
-    [addContact, recordActivity, reviews]
+    [addContact, recordActivity, reviews, engageInviteByPhone]
   );
 
   const value = useMemo<StoreValue>(
@@ -244,6 +286,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       winbackEntries,
       googleReviews,
       webhookSends,
+      reviewInvites,
       range,
       setRange,
       resetRange,
@@ -261,7 +304,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       staff, contacts, reviews, pendingInvites, campaigns, winbackEntries,
-      googleReviews, webhookSends, range, resetRange, addContact, editContact,
+      googleReviews, webhookSends, reviewInvites, range, resetRange, addContact, editContact,
       deleteContact, addStaff, editStaff, saveCampaign, markClaimed,
       recordActivity, sendReviewRequest, submitQrReview, activeOfferFor,
     ]

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ClockIcon, GlobeIcon, ThumbsUpIcon, WrenchIcon } from "../../components/icons";
 import { Avatar, Card, EmptyState, ListRow, Pill, Stars } from "../../components/ui";
 import { useReviewsInRange, useStore } from "../../data/store";
-import { fmtDate } from "../../lib/format";
+import { daysBetween, fmtDate, plural } from "../../lib/format";
 import { ReviewListCard } from "./ReviewList";
 
 const TILES = [
@@ -48,32 +48,70 @@ export function ReviewsHome() {
 }
 
 export function SentPage() {
-  const { pendingInvites } = useStore();
+  const { reviewInvites, contacts, staff, range } = useStore();
+
+  const contactName = (id: number) => contacts.find((c) => c.id === id)?.name ?? "Contact";
+  const staffFirst = (id: number | null) => staff.find((s) => s.id === id)?.firstName ?? "the team";
+
+  const inRange = reviewInvites.filter(
+    (i) => i.sentAt >= range.from && i.sentAt <= range.to
+  );
+
+  const statusOf = (i: (typeof reviewInvites)[number]) => {
+    if (i.reviewedAt) return { label: "Reviewed", tone: "green" as const };
+    if (i.engagedAt) return { label: "Name and number in", tone: "green" as const };
+    if (i.followUp2At) return { label: "Reminded twice", tone: "amber" as const };
+    if (i.followUp1At) return { label: "Reminded once", tone: "amber" as const };
+    return { label: "Waiting", tone: "blue" as const };
+  };
+
   return (
-    <Card className="py-1 px-4">
-      {pendingInvites.length ? (
-        pendingInvites.map((p, i) => (
-          <ListRow key={p.id} first={i === 0} className="items-center">
-            <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center bg-warnsoft text-warn">
-              <ClockIcon className="w-4 h-4" />
-            </div>
-            <div className="flex-1">
-              <p className="m-0 text-[13px] font-semibold">
-                {p.name} <span className="font-normal text-faint text-xs">· Table {p.table}</span>
-              </p>
-              <p className="m-0 mt-0.5 text-xs text-sub">
-                Scanned {p.scannedAt}. The request sends at {p.sendsAt}.
-              </p>
-            </div>
-            <Pill text={`Waiting. Sends ${p.sendsAt}`} tone="amber" />
-          </ListRow>
-        ))
-      ) : (
-        <EmptyState>
-          No one is waiting right now. New diners appear here after they scan a staff QR code.
-        </EmptyState>
-      )}
-    </Card>
+    <>
+      <div className="bg-accentsoft text-accent rounded-lg px-3.5 py-2.5 mb-4 text-[12.5px] leading-relaxed">
+        Every review request you send lands here. We match the reply by phone number. If a diner
+        does not give their name and number within 2 days we nudge them, and once more 2 days after
+        that. Anyone who replies leaves the list.
+      </div>
+      <Card className="py-1 px-4">
+        {inRange.length ? (
+          inRange.map((inv, i) => {
+            const st = statusOf(inv);
+            const days = Math.max(0, daysBetween(inv.sentAt, range.to));
+            const done = !!inv.engagedAt;
+            return (
+              <ListRow key={inv.id} first={i === 0} className="items-center">
+                <div
+                  className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center ${
+                    done ? "bg-goodsoft text-good" : "bg-warnsoft text-warn"
+                  }`}
+                >
+                  <ClockIcon className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="m-0 text-[13px] font-semibold">
+                    {contactName(inv.contactId)}{" "}
+                    <span className="font-normal text-faint text-xs">
+                      · {inv.staffId ? `${staffFirst(inv.staffId)}'s link` : "review link"}
+                    </span>
+                  </p>
+                  <p className="m-0 mt-0.5 text-xs text-sub">
+                    Sent {fmtDate(inv.sentAt)}.{" "}
+                    {done
+                      ? "They came back to us."
+                      : `${plural(days, "day", "days")} waiting.`}
+                  </p>
+                </div>
+                <Pill text={st.label} tone={st.tone} />
+              </ListRow>
+            );
+          })
+        ) : (
+          <EmptyState>
+            No review requests in these dates. Add a customer, then tap Send review to ask for one.
+          </EmptyState>
+        )}
+      </Card>
+    </>
   );
 }
 

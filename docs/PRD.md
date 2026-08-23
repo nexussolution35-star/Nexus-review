@@ -104,6 +104,26 @@ capture them at the POS.
   campaign webhook (GHL), which sends the WhatsApp message containing the staff QR link /
   review link. Include the capturing staff member if known so the right staff link is sent.
 
+**Tracking sent review links (phone match, no token for v1).** Every Send logs a review
+invite: contact, phone, staff link, and the sent time. The diner "engaged" the moment a
+name and number come back through the QR flow, matched to the open invite by **phone
+number** (unique per tenant). Engagement stops the sequence.
+
+**Two review follow ups (managed on the Review campaign page).** If no name and number
+come back within 48 hours, **Review follow up 1** fires. If still nothing 48 hours after
+that, **Review follow up 2** fires. There are only these two nudges. Any engagement at any
+point stops them. Each follow up is a normal campaign: name, WhatsApp template
+({name}, {Restaurant name}, review link), and its own webhook URL.
+
+**Sent menu is the tracker.** The Reviews → Sent page lists every review invite with its
+state: Waiting, Reminded once, Reminded twice, Name and number in, or Reviewed, plus how
+many days it has been waiting. Completing the first step (name + number) is the signal the
+link was opened, since we only ever get that when a diner actually taps through.
+
+Note: a token in the link (a GHL merge field such as `?c={{contact.id}}`) would let us
+also detect a link opened but not completed. Deferred for v1 to keep GHL setup simple;
+phone match covers the 48 hour nudge rule.
+
 ## 6. STAFF MANAGEMENT
 
 - **Add staff** button on the Staff page. Form: First name, Surname, Job category

@@ -48,7 +48,39 @@ export interface PendingInvite {
   sendsAt: string; // HH:mm
 }
 
-export type CampaignKind = "review" | "winback1" | "winback2" | "winback3" | "winback4";
+export type CampaignKind =
+  | "review"
+  | "review_followup1"
+  | "review_followup2"
+  | "winback1"
+  | "winback2"
+  | "winback3"
+  | "winback4";
+
+/**
+ * A review request sent from the POS (Add contact, then Send review). We know
+ * who we sent to and when. The diner "engaged" when a name and number come
+ * back, matched by phone. If nothing comes back in 48 hours we nudge, and
+ * again 48 hours after that. Any engagement stops the sequence.
+ */
+export type ReviewInviteStatus =
+  | "waiting" // sent, no reminder yet, not engaged
+  | "reminded1" // first 48 hour reminder went out
+  | "reminded2" // second 48 hour reminder went out
+  | "engaged" // name and number came back
+  | "reviewed"; // they left a rating
+
+export interface ReviewInvite {
+  id: number;
+  contactId: number;
+  phone: string; // the match key
+  staffId: number | null; // whose review link was sent
+  sentAt: string; // ISO date the request went out
+  followUp1At: string | null;
+  followUp2At: string | null;
+  engagedAt: string | null; // name and number came back
+  reviewedAt: string | null; // rating submitted
+}
 
 export interface Campaign {
   id: number;

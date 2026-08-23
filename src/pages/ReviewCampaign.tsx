@@ -15,11 +15,19 @@ interface Queue {
 export function ReviewCampaignPage() {
   const { campaigns, contacts, saveCampaign } = useStore();
   const reviewCampaigns = useMemo(() => campaigns.filter((c) => c.kind === "review"), [campaigns]);
+  const followUps = useMemo(
+    () => campaigns.filter((c) => c.kind === "review_followup1" || c.kind === "review_followup2"),
+    [campaigns]
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", template: "", webhookUrl: "" });
   const [formErr, setFormErr] = useState("");
+  // Editing a follow up campaign.
+  const [fuEditId, setFuEditId] = useState<number | null>(null);
+  const [fuForm, setFuForm] = useState({ name: "", template: "", webhookUrl: "" });
+  const [fuErr, setFuErr] = useState("");
   const [openId, setOpenId] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
@@ -285,6 +293,61 @@ export function ReviewCampaignPage() {
           </EmptyState>
         )}
       </Card>
+
+      <p className="text-xs text-faint tracking-wide uppercase mt-6 mb-2">Review follow ups</p>
+      <p className="text-[12.5px] text-sub mb-2">
+        If a diner does not give their name and number within 2 days, follow up 1 goes out. Follow
+        up 2 goes out 2 days after that. Anyone who replies stops getting these.
+      </p>
+      <div className="grid gap-3.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))" }}>
+        {followUps.map((c) =>
+          fuEditId === c.id ? (
+            <CampaignForm
+              key={c.id}
+              title={`Edit ${c.name}`}
+              form={fuForm}
+              setForm={setFuForm}
+              err={fuErr}
+              onSave={() => {
+                if (!fuForm.name.trim()) return setFuErr("Enter a campaign name.");
+                if (!fuForm.template.trim()) return setFuErr("Enter the WhatsApp template message.");
+                if (!fuForm.webhookUrl.trim()) return setFuErr("Enter the webhook URL.");
+                saveCampaign({
+                  id: c.id,
+                  kind: c.kind,
+                  name: fuForm.name,
+                  template: fuForm.template,
+                  webhookUrl: fuForm.webhookUrl,
+                  offerText: null,
+                  expiryDays: null,
+                  status: c.status,
+                });
+                setFuEditId(null);
+              }}
+              onCancel={() => setFuEditId(null)}
+            />
+          ) : (
+            <Card key={c.id}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="m-0 text-sm font-bold">{c.name}</p>
+                <Pill text={c.status} tone={c.status === "Active" ? "green" : "amber"} />
+              </div>
+              <p className="m-0 mt-1.5 text-[12.5px] text-sub leading-relaxed">{c.template}</p>
+              <p className="m-0 mt-2 text-xs text-faint break-all">{c.webhookUrl}</p>
+              <button
+                onClick={() => {
+                  setFuForm({ name: c.name, template: c.template, webhookUrl: c.webhookUrl });
+                  setFuErr("");
+                  setFuEditId(c.id);
+                }}
+                className={`${ghostBtnCls} mt-3 !py-1.5 text-xs`}
+              >
+                Edit
+              </button>
+            </Card>
+          )
+        )}
+      </div>
     </>
   );
 }
@@ -295,16 +358,18 @@ function CampaignForm({
   err,
   onSave,
   onCancel,
+  title = "Review campaign",
 }: {
   form: { name: string; template: string; webhookUrl: string };
   setForm: (f: { name: string; template: string; webhookUrl: string }) => void;
   err: string;
   onSave: () => void;
   onCancel: () => void;
+  title?: string;
 }) {
   return (
     <Card className="border-accent mb-4">
-      <p className="m-0 mb-3 text-[15px] font-semibold text-accent">Review campaign</p>
+      <p className="m-0 mb-3 text-[15px] font-semibold text-accent">{title}</p>
       <div className="grid gap-3">
         <div>
           <FieldLabel>Campaign name</FieldLabel>

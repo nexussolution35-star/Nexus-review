@@ -5,6 +5,7 @@ import type {
   GooglePublicReview,
   PendingInvite,
   Review,
+  ReviewInvite,
   StaffMember,
   WinbackEntry,
   WinbackStage,
@@ -96,7 +97,10 @@ export interface SeedData {
   campaigns: Campaign[];
   winbackEntries: WinbackEntry[];
   googleReviews: GooglePublicReview[];
+  reviewInvites: ReviewInvite[];
 }
+
+export const REVIEW_FOLLOWUP_HOURS = 48;
 
 export function generateSeedData(seed = 7): SeedData {
   const rnd = mulberry32(seed);
@@ -223,6 +227,28 @@ export function generateSeedData(seed = 7): SeedData {
       status: "Active",
     },
     {
+      id: 6,
+      kind: "review_followup1",
+      name: "Review follow up 1",
+      template:
+        "Hi {name}, we would still love to hear how your visit to {Restaurant name} went. It takes 30 seconds. Tap the link below.",
+      webhookUrl: "https://hooks.ghl.example/fireside/review-followup-1",
+      offerText: null,
+      expiryDays: null,
+      status: "Active",
+    },
+    {
+      id: 7,
+      kind: "review_followup2",
+      name: "Review follow up 2",
+      template:
+        "Hi {name}, one last nudge from {Restaurant name}. Your feedback really helps us serve you better. Tap the link when you have a moment.",
+      webhookUrl: "https://hooks.ghl.example/fireside/review-followup-2",
+      offerText: null,
+      expiryDays: null,
+      status: "Active",
+    },
+    {
       id: 2,
       kind: "winback1",
       name: "Win back 1. We miss you",
@@ -280,7 +306,8 @@ export function generateSeedData(seed = 7): SeedData {
     usedContactIds.add(c.id);
     return c;
   };
-  const stageCampaign = (stage: WinbackStage): Campaign => campaigns[stage]; // campaigns[1..4] are winback 1..4
+  const stageCampaign = (stage: WinbackStage): Campaign =>
+    campaigns.find((c) => c.kind === `winback${stage}`)!;
 
   // Guaranteed unclaimed-return example (PRD §7): Thandi Nkosi held a stage 2 offer,
   // came back and was captured at the POS without claiming it, so the offer was voided
@@ -297,7 +324,7 @@ export function generateSeedData(seed = 7): SeedData {
       stage: 2,
       enteredAt,
       sentAt: enteredAt,
-      offerExpiresAt: addDays(enteredAt, campaigns[2].expiryDays ?? 5),
+      offerExpiresAt: addDays(enteredAt, stageCampaign(2).expiryDays ?? 5),
       claimedAt: null,
       expiredAt: cameBackAt,
       voided: true,
@@ -377,5 +404,58 @@ export function generateSeedData(seed = 7): SeedData {
       });
     });
 
-  return { staff, contacts, reviews, pendingInvites, campaigns, winbackEntries, googleReviews };
+  /* ---- review invites: sent from the POS, tracked by phone (PRD §5) ---- */
+  const reviewInvites: ReviewInvite[] = [];
+  let iid = 1;
+  const invitePool = contacts.filter((c) => !c.optedOut);
+  let ip = 0;
+  const nextInviteContact = () => invitePool[ip++ % invitePool.length];
+  const addInvite = (
+    hoursAgo: number,
+    reach: "waiting" | "reminded1" | "reminded2" | "engaged" | "reviewed"
+  ) => {
+    const c = nextInviteContact();
+    const sentAt = addDays(TODAY, -Math.ceil(hoursAgo / 24));
+    const day = 24;
+    reviewInvites.push({
+      id: iid++,
+      contactId: c.id,
+      phone: c.phone,
+      staffId: staff[Math.floor(rnd() * staff.length)].id,
+      sentAt,
+      followUp1At:
+        reach === "reminded1" || reach === "reminded2"
+          ? addDays(sentAt, Math.floor(REVIEW_FOLLOWUP_HOURS / day))
+          : null,
+      followUp2At:
+        reach === "reminded2"
+          ? addDays(sentAt, Math.floor((REVIEW_FOLLOWUP_HOURS * 2) / day))
+          : null,
+      engagedAt: reach === "engaged" || reach === "reviewed" ? addDays(sentAt, 1) : null,
+      reviewedAt: reach === "reviewed" ? addDays(sentAt, 1) : null,
+    });
+  };
+  // A spread across every state so the Sent tracker shows the whole funnel.
+  addInvite(6, "waiting");
+  addInvite(20, "waiting");
+  addInvite(30, "waiting");
+  addInvite(60, "reminded1");
+  addInvite(70, "reminded1");
+  addInvite(110, "reminded2");
+  addInvite(3, "engaged");
+  addInvite(28, "engaged");
+  addInvite(50, "reviewed");
+  addInvite(80, "reviewed");
+  reviewInvites.sort((a, b) => (a.sentAt < b.sentAt ? 1 : -1));
+
+  return {
+    staff,
+    contacts,
+    reviews,
+    pendingInvites,
+    campaigns,
+    winbackEntries,
+    googleReviews,
+    reviewInvites,
+  };
 }
