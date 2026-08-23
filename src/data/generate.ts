@@ -113,10 +113,9 @@ export function generateSeedData(seed = 7): SeedData {
 
   /* ---- contacts ---- */
   const contacts: Contact[] = [];
-  const addedBys = [
-    "QR scan", "QR scan", "QR scan", "QR scan",
-    "Tumi (Waiter)", "Dan (Waiter)", "Naledi (Waiter)", "Andile (Waiter)", "Manager",
-  ];
+  // Every contact is captured through a staff member's unique QR, so "added by"
+  // is always the staff member's name.
+  const addedBys = staff.map((s) => `${s.firstName} ${s.surname}`);
   const usedPhones = new Set<string>();
   for (let i = 0; i < NAMES.length; i++) {
     let phone = "";

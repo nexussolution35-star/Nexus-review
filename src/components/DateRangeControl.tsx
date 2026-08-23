@@ -1,9 +1,9 @@
 import { useStore } from "../data/store";
 import { DATA_START, TODAY } from "../data/generate";
 
-/** The ONE global date control: From and To calendar pickers with a From inception reset. */
+/** The ONE global date control: From and To calendar pickers. */
 export function DateRangeControl() {
-  const { range, setRange, resetRange } = useStore();
+  const { range, setRange } = useStore();
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-semibold text-accent">From</span>
@@ -32,12 +32,6 @@ export function DateRangeControl() {
         }
         className="text-[13px] px-2.5 py-1.5 rounded-lg border border-line bg-surface"
       />
-      <button
-        onClick={resetRange}
-        className="text-xs px-3 py-1.5 rounded-lg border border-accent text-accent font-semibold bg-surface hover:bg-accentsoft"
-      >
-        From inception
-      </button>
     </div>
   );
 }

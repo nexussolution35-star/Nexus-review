@@ -33,11 +33,10 @@ function ActiveOfferNote({ contactId }: { contactId: number }) {
 }
 
 function SendReviewCard({ onClose }: { onClose: () => void }) {
-  const { contacts, staff, sendReviewRequest } = useStore();
+  const { contacts, sendReviewRequest } = useStore();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Contact[] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [staffId, setStaffId] = useState<number | "">("");
   const [sent, setSent] = useState<Contact | null>(null);
 
   const recent = useMemo(
@@ -122,21 +121,6 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
         ))}
 
       <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-line">
-        <div className="min-w-[180px]">
-          <FieldLabel>Captured by (optional)</FieldLabel>
-          <select
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value ? Number(e.target.value) : "")}
-            className={inputCls}
-          >
-            <option value="">Not sure</option>
-            {staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.firstName} {s.surname}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="flex-1" />
         <button onClick={onClose} className={ghostBtnCls}>
           Cancel
@@ -145,7 +129,7 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
           disabled={selectedId === null}
           onClick={() => {
             if (selectedId === null) return;
-            sendReviewRequest(selectedId, staffId === "" ? null : staffId);
+            sendReviewRequest(selectedId, null);
             setSent(contacts.find((c) => c.id === selectedId) ?? null);
           }}
           className={primaryBtnCls}
