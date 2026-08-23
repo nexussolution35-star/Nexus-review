@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   {
     to: "/reviews",
     label: "Reviews",
+    section: true,
     children: [
       { to: "/reviews/sent", label: "Sent" },
       { to: "/reviews/good", label: "Good" },
