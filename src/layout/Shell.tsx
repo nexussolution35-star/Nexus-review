@@ -11,6 +11,8 @@ interface NavItem {
   label: string;
   end?: boolean;
   children?: NavChild[];
+  /** A section whose header only toggles the dropdown, with no page of its own. */
+  section?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -27,8 +29,15 @@ const NAV: NavItem[] = [
   },
   { to: "/customers", label: "Customers" },
   { to: "/staff", label: "Staff" },
-  { to: "/review-campaign", label: "Review campaign" },
-  { to: "/win-back", label: "Win back campaign" },
+  {
+    to: "/campaigns",
+    label: "Campaigns",
+    section: true,
+    children: [
+      { to: "/review-campaign", label: "Review campaign" },
+      { to: "/win-back", label: "Win back campaign" },
+    ],
+  },
   {
     to: "/statistics",
     label: "Statistics",
@@ -62,8 +71,10 @@ export function Shell() {
   // automatically, and a manual toggle overrides that until the route changes.
   const [toggled, setToggled] = useState<Record<string, boolean | undefined>>({});
   useEffect(() => setToggled({}), [pathname]);
+  const hasActiveChild = (n: NavItem) =>
+    pathname.startsWith(n.to) || !!n.children?.some((c) => pathname.startsWith(c.to));
   const isOpen = (n: NavItem) =>
-    toggled[n.to] !== undefined ? !!toggled[n.to] : pathname.startsWith(n.to);
+    toggled[n.to] !== undefined ? !!toggled[n.to] : hasActiveChild(n);
   const titleKey = TITLES[pathname]
     ? pathname
     : Object.keys(TITLES)
@@ -89,32 +100,46 @@ export function Shell() {
           <p className="text-sm font-bold m-0">Rave</p>
           <p className="text-[11px] text-faint mt-0.5">Powered by Nexus Solution</p>
         </div>
-        {NAV.map((n) => (
-          <div key={n.to}>
-            <NavLink
-              to={n.to}
-              end={n.end ?? !!n.children}
-              onClick={() => n.children && setToggled((t) => ({ ...t, [n.to]: !isOpen(n) }))}
-              className={({ isActive }) =>
-                `${linkCls(isActive, false)} flex items-center justify-between`
-              }
+        {NAV.map((n) => {
+          const chevron = n.children && (
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`w-3.5 h-3.5 text-faint transition-transform ${isOpen(n) ? "rotate-180" : ""}`}
+              aria-hidden="true"
             >
-              {n.label}
-              {n.children && (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={`w-3.5 h-3.5 text-faint transition-transform ${isOpen(n) ? "rotate-180" : ""}`}
-                  aria-hidden="true"
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              )}
-            </NavLink>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          );
+          const toggle = () => setToggled((t) => ({ ...t, [n.to]: !isOpen(n) }));
+          return (
+          <div key={n.to}>
+            {n.section ? (
+              <button
+                type="button"
+                onClick={toggle}
+                className={`${linkCls(false, false)} flex items-center justify-between w-full text-left`}
+              >
+                {n.label}
+                {chevron}
+              </button>
+            ) : (
+              <NavLink
+                to={n.to}
+                end={n.end ?? !!n.children}
+                onClick={() => n.children && toggle()}
+                className={({ isActive }) =>
+                  `${linkCls(isActive, false)} flex items-center justify-between`
+                }
+              >
+                {n.label}
+                {chevron}
+              </NavLink>
+            )}
             {n.children && isOpen(n) &&
               n.children.map((c) => (
                 <NavLink
@@ -127,7 +152,8 @@ export function Shell() {
                 </NavLink>
               ))}
           </div>
-        ))}
+          );
+        })}
       </aside>
 
       <main className="flex-1 min-w-0 px-4 md:px-7 py-5">
