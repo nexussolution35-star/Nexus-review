@@ -18,7 +18,7 @@ import { StatsOverview, StatsReviews, StatsStaff } from "./pages/stats/Stats";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <StoreProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <Routes>
           <Route path="/r/:slug" element={<QrFlow />} />
           <Route element={<Shell />}>

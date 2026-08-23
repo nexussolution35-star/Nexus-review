@@ -35,5 +35,6 @@ export async function downloadQrPng(value: string, filename: string): Promise<vo
 }
 
 export function staffReviewLink(qrSlug: string): string {
-  return `${window.location.origin}/r/${qrSlug}`;
+  // import.meta.env.BASE_URL ends with "/" ("/" locally, "/Nexus-review/" on Pages).
+  return `${window.location.origin}${import.meta.env.BASE_URL}r/${qrSlug}`;
 }
