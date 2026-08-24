@@ -1,8 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { addDays, iso, normalizePhone } from "../lib/format";
-import { generateSeedData, TODAY, DATA_START } from "./generate";
+import { iso, normalizePhone } from "../lib/format";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "./auth";
+import { DATA_START, TODAY } from "./constants";
 import type {
   Campaign,
   Contact,
@@ -11,11 +13,8 @@ import type {
   Review,
   ReviewInvite,
   StaffMember,
-  WebhookSend,
   WinbackEntry,
 } from "./types";
-
-const SEED = generateSeedData(7);
 
 export interface DateRange {
   from: string;
@@ -25,13 +24,14 @@ export interface DateRange {
 interface QrSubmission {
   name: string;
   phone: string;
-  staffId: number;
+  staffId: string;
   staffStars: number;
   staffComment: string | null;
   overallStars: number;
 }
 
 interface StoreValue {
+  loaded: boolean;
   staff: StaffMember[];
   contacts: Contact[];
   reviews: Review[];
@@ -39,50 +39,156 @@ interface StoreValue {
   campaigns: Campaign[];
   winbackEntries: WinbackEntry[];
   googleReviews: GooglePublicReview[];
-  webhookSends: WebhookSend[];
   reviewInvites: ReviewInvite[];
   range: DateRange;
   setRange: (r: DateRange) => void;
   resetRange: () => void;
-  addContact: (name: string, phone: string, addedBy: string) => Contact;
-  editContact: (id: number, name: string, phone: string) => void;
-  deleteContact: (id: number) => void;
-  addStaff: (firstName: string, surname: string, category: "Waiter", webhookUrl: string) => StaffMember;
-  editStaff: (id: number, patch: Partial<Omit<StaffMember, "id">>) => void;
-  saveCampaign: (patch: Omit<Campaign, "id"> & { id?: number }) => void;
-  markClaimed: (entryId: number) => void;
-  recordActivity: (contactId: number) => void;
-  sendReviewRequest: (contactId: number, staffId: number | null) => void;
-  submitQrReview: (s: QrSubmission) => { review: Review; contact: Contact };
-  activeOfferFor: (contactId: number) => { entry: WinbackEntry; campaign: Campaign } | null;
+  addContact: (name: string, phone: string, addedBy: string) => Promise<Contact | null>;
+  editContact: (id: string, name: string, phone: string) => Promise<void>;
+  deleteContact: (id: string) => Promise<void>;
+  addStaff: (firstName: string, surname: string, category: "Waiter", webhookUrl: string) => Promise<StaffMember | null>;
+  editStaff: (id: string, patch: { firstName: string; surname: string; webhookUrl: string }) => Promise<void>;
+  saveCampaign: (patch: Omit<Campaign, "id"> & { id?: string }) => Promise<void>;
+  markClaimed: (entryId: string) => Promise<void>;
+  recordActivity: (contactId: string) => Promise<void>;
+  sendReviewRequest: (contactId: string, staffId: string | null) => Promise<void>;
+  submitQrReview: (s: QrSubmission) => Promise<{ contact: Contact | null }>;
+  activeOfferFor: (contactId: string) => { entry: WinbackEntry; campaign: Campaign } | null;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
-
 const FULL_RANGE: DateRange = { from: DATA_START, to: TODAY };
 
+const dstr = (v: unknown): string => (v ? String(v).slice(0, 10) : "");
+const dnull = (v: unknown): string | null => (v ? String(v).slice(0, 10) : null);
+
+/* ---------- row mappers (snake_case DB -> camelCase types) ---------- */
+type Row = Record<string, unknown>;
+const mapStaff = (r: Row): StaffMember => ({
+  id: r.id as string,
+  firstName: r.first_name as string,
+  surname: r.surname as string,
+  category: "Waiter",
+  webhookUrl: (r.webhook_url as string) ?? "",
+  qrSlug: r.qr_slug as string,
+});
+const mapContact = (r: Row): Contact => ({
+  id: r.id as string,
+  name: r.name as string,
+  phone: r.phone as string,
+  addedBy: (r.added_by as string) ?? "",
+  createdAt: dstr(r.created_at),
+  lastActivityAt: dstr(r.last_activity_at),
+  consentAt: dnull(r.consent_at),
+  optedOut: !!r.opted_out,
+});
+const mapReview = (r: Row): Review => ({
+  id: r.id as string,
+  contactId: (r.contact_id as string) ?? null,
+  dinerName: (r.diner_name as string) ?? "",
+  staffId: (r.staff_id as string) ?? null,
+  staffStars: (r.staff_stars as number) ?? 0,
+  staffComment: (r.staff_comment as string) ?? null,
+  overallStars: (r.overall_stars as number) ?? 0,
+  route: (r.route as Review["route"]) ?? "good",
+  issueCategory: (r.issue_category as string) ?? null,
+  assignedStaffId: (r.assigned_staff_id as string) ?? null,
+  status: (r.status as Review["status"]) ?? null,
+  googleStatus: (r.google_status as Review["googleStatus"]) ?? null,
+  createdAt: dstr(r.created_at),
+});
+const mapCampaign = (r: Row): Campaign => ({
+  id: r.id as string,
+  kind: r.kind as Campaign["kind"],
+  name: r.name as string,
+  template: r.template as string,
+  webhookUrl: (r.webhook_url as string) ?? "",
+  offerText: (r.offer_text as string) ?? null,
+  expiryDays: (r.expiry_days as number) ?? null,
+  status: (r.status as Campaign["status"]) ?? "Active",
+});
+const mapWinback = (r: Row): WinbackEntry => ({
+  id: r.id as string,
+  contactId: r.contact_id as string,
+  stage: r.stage as WinbackEntry["stage"],
+  enteredAt: dstr(r.entered_at),
+  sentAt: dnull(r.sent_at),
+  offerExpiresAt: dstr(r.offer_expires_at),
+  claimedAt: dnull(r.claimed_at),
+  expiredAt: dnull(r.expired_at),
+  voided: !!r.voided,
+});
+const mapInvite = (r: Row): ReviewInvite => ({
+  id: r.id as string,
+  contactId: r.contact_id as string,
+  phone: r.phone as string,
+  staffId: (r.staff_id as string) ?? null,
+  sentAt: dstr(r.sent_at),
+  followUp1At: dnull(r.follow_up1_at),
+  followUp2At: dnull(r.follow_up2_at),
+  engagedAt: dnull(r.engaged_at),
+  reviewedAt: dnull(r.reviewed_at),
+});
+const mapGoogle = (r: Row): GooglePublicReview => ({
+  id: r.id as string,
+  author: (r.author as string) ?? "",
+  stars: (r.stars as number) ?? 0,
+  text: (r.text as string) ?? "",
+  postedAt: dstr(r.posted_at),
+});
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [contacts, setContacts] = useState<Contact[]>(SEED.contacts);
-  const [staff, setStaff] = useState<StaffMember[]>(SEED.staff);
-  const [reviews, setReviews] = useState<Review[]>(SEED.reviews);
-  const [pendingInvites] = useState<PendingInvite[]>(SEED.pendingInvites);
-  const [campaigns, setCampaigns] = useState<Campaign[]>(SEED.campaigns);
-  const [winbackEntries, setWinbackEntries] = useState<WinbackEntry[]>(SEED.winbackEntries);
-  const [googleReviews] = useState<GooglePublicReview[]>(SEED.googleReviews);
-  const [webhookSends, setWebhookSends] = useState<WebhookSend[]>([]);
-  const [reviewInvites, setReviewInvites] = useState<ReviewInvite[]>(SEED.reviewInvites);
+  const { appUser, session } = useAuth();
+  const tenantId = appUser?.tenantId ?? null;
+
+  const [loaded, setLoaded] = useState(false);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [winbackEntries, setWinbackEntries] = useState<WinbackEntry[]>([]);
+  const [googleReviews, setGoogleReviews] = useState<GooglePublicReview[]>([]);
+  const [reviewInvites, setReviewInvites] = useState<ReviewInvite[]>([]);
   const [range, setRange] = useState<DateRange>(FULL_RANGE);
+  const pendingInvites: PendingInvite[] = [];
 
   const resetRange = useCallback(() => setRange(FULL_RANGE), []);
 
+  useEffect(() => {
+    if (!tenantId) {
+      setLoaded(false);
+      return;
+    }
+    let active = true;
+    (async () => {
+      const [st, ct, rv, cp, wb, ri, gr] = await Promise.all([
+        supabase.from("staff").select("*").order("first_name"),
+        supabase.from("contacts").select("*").order("created_at", { ascending: false }),
+        supabase.from("reviews").select("*").order("created_at", { ascending: false }),
+        supabase.from("campaigns").select("*"),
+        supabase.from("winback_state").select("*"),
+        supabase.from("review_invites").select("*").order("sent_at", { ascending: false }),
+        supabase.from("google_reviews").select("*").order("posted_at", { ascending: false }),
+      ]);
+      if (!active) return;
+      setStaff((st.data ?? []).map(mapStaff));
+      setContacts((ct.data ?? []).map(mapContact));
+      setReviews((rv.data ?? []).map(mapReview));
+      setCampaigns((cp.data ?? []).map(mapCampaign));
+      setWinbackEntries((wb.data ?? []).map(mapWinback));
+      setReviewInvites((ri.data ?? []).map(mapInvite));
+      setGoogleReviews((gr.data ?? []).map(mapGoogle));
+      setLoaded(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [tenantId, session?.access_token]);
+
   const activeOfferFor = useCallback(
-    (contactId: number) => {
+    (contactId: string) => {
       const entry = winbackEntries.find(
-        (e) =>
-          e.contactId === contactId &&
-          !e.claimedAt &&
-          !e.expiredAt &&
-          e.offerExpiresAt >= TODAY
+        (e) => e.contactId === contactId && !e.claimedAt && !e.expiredAt && e.offerExpiresAt >= TODAY
       );
       if (!entry) return null;
       const campaign = campaigns.find((c) => c.kind === `winback${entry.stage}`);
@@ -91,18 +197,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [winbackEntries, campaigns]
   );
 
-  /**
-   * PRD §7 unclaimed return rule. Any detected activity (QR scan, review,
-   * manual add or find) updates last_activity_at. If the contact holds an
-   * active offer that was never marked claimed, the offer is voided to
-   * Expired with that date, the contact exits the sequence back to Active,
-   * and the 14 day inactivity clock restarts from this activity.
-   */
-  const recordActivity = useCallback((contactId: number) => {
+  const recordActivity = useCallback(async (contactId: string) => {
     const today = iso(new Date());
-    setContacts((cs) =>
-      cs.map((c) => (c.id === contactId ? { ...c, lastActivityAt: today } : c))
-    );
+    await supabase.from("contacts").update({ last_activity_at: today }).eq("id", contactId);
+    await supabase
+      .from("winback_state")
+      .update({ expired_at: today, voided: true })
+      .eq("contact_id", contactId)
+      .is("claimed_at", null)
+      .is("expired_at", null);
+    setContacts((cs) => cs.map((c) => (c.id === contactId ? { ...c, lastActivityAt: today } : c)));
     setWinbackEntries((es) =>
       es.map((e) =>
         e.contactId === contactId && !e.claimedAt && !e.expiredAt
@@ -113,200 +217,166 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addContact = useCallback(
-    (name: string, phone: string, addedBy: string): Contact => {
+    async (name: string, phone: string, addedBy: string): Promise<Contact | null> => {
+      if (!tenantId) return null;
       const norm = normalizePhone(phone);
-      const today = iso(new Date());
       const existing = contacts.find((c) => normalizePhone(c.phone) === norm);
       if (existing) {
-        recordActivity(existing.id);
+        await recordActivity(existing.id);
         return existing;
       }
-      const contact: Contact = {
-        id: Math.max(0, ...contacts.map((c) => c.id)) + 1,
-        name: name.trim(),
-        phone: phone.trim(),
-        addedBy,
-        createdAt: today,
-        lastActivityAt: today,
-        consentAt: today,
-        optedOut: false,
-      };
-      setContacts((cs) => [contact, ...cs]);
-      return contact;
+      const today = iso(new Date());
+      const { data } = await supabase
+        .from("contacts")
+        .insert({
+          tenant_id: tenantId,
+          name: name.trim(),
+          phone: phone.trim(),
+          added_by: addedBy,
+          created_at: today,
+          last_activity_at: today,
+          consent_at: today,
+          opted_out: false,
+        })
+        .select()
+        .single();
+      if (!data) return null;
+      const c = mapContact(data);
+      setContacts((cs) => [c, ...cs]);
+      return c;
     },
-    [contacts, recordActivity]
+    [tenantId, contacts, recordActivity]
   );
 
-  const editContact = useCallback((id: number, name: string, phone: string) => {
-    setContacts((cs) =>
-      cs.map((c) => (c.id === id ? { ...c, name: name.trim(), phone: phone.trim() } : c))
-    );
+  const editContact = useCallback(async (id: string, name: string, phone: string) => {
+    await supabase.from("contacts").update({ name: name.trim(), phone: phone.trim() }).eq("id", id);
+    setContacts((cs) => cs.map((c) => (c.id === id ? { ...c, name: name.trim(), phone: phone.trim() } : c)));
   }, []);
 
-  const deleteContact = useCallback((id: number) => {
+  const deleteContact = useCallback(async (id: string) => {
+    await supabase.from("contacts").delete().eq("id", id);
     setContacts((cs) => cs.filter((c) => c.id !== id));
   }, []);
 
   const addStaff = useCallback(
-    (firstName: string, surname: string, category: "Waiter", webhookUrl: string): StaffMember => {
-      const slugBase = `${firstName}-${surname}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const rand = Math.random().toString(36).slice(2, 6);
-      const member: StaffMember = {
-        id: Math.max(0, ...staff.map((s) => s.id)) + 1,
-        firstName: firstName.trim(),
-        surname: surname.trim(),
-        category,
-        webhookUrl: webhookUrl.trim(),
-        qrSlug: `${slugBase}-${rand}`,
-      };
-      setStaff((ss) => [...ss, member]);
-      return member;
+    async (firstName: string, surname: string, category: "Waiter", webhookUrl: string) => {
+      if (!tenantId) return null;
+      const slug = `${firstName}-${surname}`.toLowerCase().replace(/[^a-z0-9]+/g, "-") +
+        "-" + Math.random().toString(36).slice(2, 6);
+      const { data } = await supabase
+        .from("staff")
+        .insert({
+          tenant_id: tenantId,
+          first_name: firstName.trim(),
+          surname: surname.trim(),
+          category,
+          webhook_url: webhookUrl.trim(),
+          qr_slug: slug,
+        })
+        .select()
+        .single();
+      if (!data) return null;
+      const m = mapStaff(data);
+      setStaff((ss) => [...ss, m]);
+      return m;
     },
-    [staff]
+    [tenantId]
   );
 
-  const editStaff = useCallback((id: number, patch: Partial<Omit<StaffMember, "id">>) => {
-    setStaff((ss) => ss.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  }, []);
+  const editStaff = useCallback(
+    async (id: string, patch: { firstName: string; surname: string; webhookUrl: string }) => {
+      await supabase
+        .from("staff")
+        .update({ first_name: patch.firstName, surname: patch.surname, webhook_url: patch.webhookUrl })
+        .eq("id", id);
+      setStaff((ss) =>
+        ss.map((s) =>
+          s.id === id
+            ? { ...s, firstName: patch.firstName, surname: patch.surname, webhookUrl: patch.webhookUrl }
+            : s
+        )
+      );
+    },
+    []
+  );
 
-  const saveCampaign = useCallback((patch: Omit<Campaign, "id"> & { id?: number }) => {
-    setCampaigns((cs) => {
-      if (patch.id !== undefined) {
-        return cs.map((c) => (c.id === patch.id ? { ...c, ...patch, id: c.id } : c));
+  const saveCampaign = useCallback(
+    async (patch: Omit<Campaign, "id"> & { id?: string }) => {
+      if (!tenantId) return;
+      const row = {
+        kind: patch.kind,
+        name: patch.name,
+        template: patch.template,
+        webhook_url: patch.webhookUrl,
+        offer_text: patch.offerText,
+        expiry_days: patch.expiryDays,
+        status: patch.status,
+      };
+      if (patch.id) {
+        await supabase.from("campaigns").update(row).eq("id", patch.id);
+        setCampaigns((cs) => cs.map((c) => (c.id === patch.id ? { ...c, ...patch, id: c.id } : c)));
+      } else {
+        const { data } = await supabase
+          .from("campaigns")
+          .insert({ ...row, tenant_id: tenantId })
+          .select()
+          .single();
+        if (data) setCampaigns((cs) => [...cs, mapCampaign(data)]);
       }
-      const id = Math.max(0, ...cs.map((c) => c.id)) + 1;
-      return [...cs, { ...patch, id }];
-    });
-  }, []);
+    },
+    [tenantId]
+  );
 
-  const markClaimed = useCallback((entryId: number) => {
+  const markClaimed = useCallback(async (entryId: string) => {
     const today = iso(new Date());
-    setWinbackEntries((es) =>
-      es.map((e) => (e.id === entryId ? { ...e, claimedAt: today } : e))
-    );
+    await supabase.from("winback_state").update({ claimed_at: today }).eq("id", entryId);
+    setWinbackEntries((es) => es.map((e) => (e.id === entryId ? { ...e, claimedAt: today } : e)));
     const entry = winbackEntries.find((e) => e.id === entryId);
     if (entry) {
-      setContacts((cs) =>
-        cs.map((c) => (c.id === entry.contactId ? { ...c, lastActivityAt: today } : c))
-      );
+      await supabase.from("contacts").update({ last_activity_at: today }).eq("id", entry.contactId);
+      setContacts((cs) => cs.map((c) => (c.id === entry.contactId ? { ...c, lastActivityAt: today } : c)));
     }
   }, [winbackEntries]);
 
   const sendReviewRequest = useCallback(
-    (contactId: number, staffId: number | null) => {
-      const reviewCampaign = campaigns.find((c) => c.kind === "review");
-      if (!reviewCampaign) return;
+    async (contactId: string, staffId: string | null) => {
+      if (!tenantId) return;
       const contact = contacts.find((c) => c.id === contactId);
       const today = iso(new Date());
-      setWebhookSends((ws) => [
-        {
-          id: ws.length + 1,
-          campaignId: reviewCampaign.id,
-          contactId,
-          staffId,
-          queuedAt: new Date().toISOString(),
-        },
-        ...ws,
-      ]);
-      // Log a review invite we can track by phone (PRD §5).
-      setReviewInvites((is) => [
-        {
-          id: Math.max(0, ...is.map((i) => i.id)) + 1,
-          contactId,
+      const { data } = await supabase
+        .from("review_invites")
+        .insert({
+          tenant_id: tenantId,
+          contact_id: contactId,
           phone: contact?.phone ?? "",
-          staffId,
-          sentAt: today,
-          followUp1At: null,
-          followUp2At: null,
-          engagedAt: null,
-          reviewedAt: null,
-        },
-        ...is,
-      ]);
+          staff_id: staffId,
+          sent_at: today,
+        })
+        .select()
+        .single();
+      if (data) setReviewInvites((is) => [mapInvite(data), ...is]);
     },
-    [campaigns, contacts]
+    [tenantId, contacts]
   );
 
-  /**
-   * A name and number came back. Close the newest open review invite that
-   * matches by phone (PRD §5): mark it engaged, and reviewed if a rating came
-   * with it. This is what stops the 48 hour follow up sequence.
-   */
-  const engageInviteByPhone = useCallback((phone: string, reviewed: boolean) => {
-    const norm = normalizePhone(phone);
-    const today = iso(new Date());
-    setReviewInvites((is) => {
-      const openIdx = is.findIndex(
-        (i) => normalizePhone(i.phone) === norm && !i.engagedAt
-      );
-      if (openIdx === -1) return is;
-      return is.map((i, idx) =>
-        idx === openIdx
-          ? { ...i, engagedAt: today, reviewedAt: reviewed ? today : i.reviewedAt }
-          : i
-      );
-    });
+  // The public QR flow writes through an Edge Function (unauthenticated diners
+  // cannot pass RLS). Wired in the next step; kept as a safe no-op for now.
+  const submitQrReview = useCallback(async (_s: QrSubmission) => {
+    return { contact: null as Contact | null };
   }, []);
-
-  const submitQrReview = useCallback(
-    (s: QrSubmission): { review: Review; contact: Contact } => {
-      const contact = addContact(s.name, s.phone, "QR scan");
-      recordActivity(contact.id);
-      const route = s.overallStars >= 4 ? "good" : "bad";
-      const review: Review = {
-        id: Math.max(0, ...reviews.map((r) => r.id)) + 1,
-        contactId: contact.id,
-        dinerName: contact.name,
-        staffId: s.staffId,
-        staffStars: s.staffStars,
-        staffComment: s.staffComment,
-        overallStars: s.overallStars,
-        route,
-        issueCategory: route === "bad" ? "New issue" : null,
-        assignedStaffId: route === "bad" ? s.staffId : null,
-        status: route === "bad" ? "new" : null,
-        googleStatus: null,
-        createdAt: iso(new Date()),
-      };
-      setReviews((rs) => [review, ...rs]);
-      // Name and number came back with a rating: close the matching invite.
-      engageInviteByPhone(contact.phone, true);
-      return { review, contact };
-    },
-    [addContact, recordActivity, reviews, engageInviteByPhone]
-  );
 
   const value = useMemo<StoreValue>(
     () => ({
-      staff,
-      contacts,
-      reviews,
-      pendingInvites,
-      campaigns,
-      winbackEntries,
-      googleReviews,
-      webhookSends,
-      reviewInvites,
-      range,
-      setRange,
-      resetRange,
-      addContact,
-      editContact,
-      deleteContact,
-      addStaff,
-      editStaff,
-      saveCampaign,
-      markClaimed,
-      recordActivity,
-      sendReviewRequest,
-      submitQrReview,
-      activeOfferFor,
+      loaded, staff, contacts, reviews, pendingInvites, campaigns, winbackEntries,
+      googleReviews, reviewInvites, range, setRange, resetRange, addContact, editContact,
+      deleteContact, addStaff, editStaff, saveCampaign, markClaimed, recordActivity,
+      sendReviewRequest, submitQrReview, activeOfferFor,
     }),
     [
-      staff, contacts, reviews, pendingInvites, campaigns, winbackEntries,
-      googleReviews, webhookSends, reviewInvites, range, resetRange, addContact, editContact,
-      deleteContact, addStaff, editStaff, saveCampaign, markClaimed,
-      recordActivity, sendReviewRequest, submitQrReview, activeOfferFor,
+      loaded, staff, contacts, reviews, campaigns, winbackEntries, googleReviews,
+      reviewInvites, range, resetRange, addContact, editContact, deleteContact,
+      addStaff, editStaff, saveCampaign, markClaimed, recordActivity, sendReviewRequest,
+      submitQrReview, activeOfferFor,
     ]
   );
 
@@ -319,15 +389,10 @@ export function useStore(): StoreValue {
   return ctx;
 }
 
-/** Reviews inside the global date range, newest first. */
 export function useReviewsInRange(): Review[] {
   const { reviews, range } = useStore();
   return useMemo(
     () => reviews.filter((r) => r.createdAt >= range.from && r.createdAt <= range.to),
     [reviews, range]
   );
-}
-
-export function addDaysIso(isoDate: string, days: number): string {
-  return addDays(isoDate, days);
 }

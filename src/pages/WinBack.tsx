@@ -4,7 +4,7 @@ import {
   ghostBtnCls, inputCls, primaryBtnCls,
 } from "../components/ui";
 import { useStore } from "../data/store";
-import { TODAY } from "../data/generate";
+import { TODAY } from "../data/constants";
 import type { Campaign, WinbackEntry, WinbackStage } from "../data/types";
 import { daysBetween, fmtDate, plural } from "../lib/format";
 
@@ -33,7 +33,7 @@ export function WinBackPage() {
     [campaigns]
   );
 
-  const contactName = (id: number) => contacts.find((c) => c.id === id)?.name ?? "Removed contact";
+  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "Removed contact";
 
   const entriesFor = (stage: WinbackStage) => {
     const all = winbackEntries.filter((e) => e.stage === stage);

@@ -50,8 +50,8 @@ export function ReviewsHome() {
 export function SentPage() {
   const { reviewInvites, contacts, staff, range } = useStore();
 
-  const contactName = (id: number) => contacts.find((c) => c.id === id)?.name ?? "Contact";
-  const staffFirst = (id: number | null) => staff.find((s) => s.id === id)?.firstName ?? "the team";
+  const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "Contact";
+  const staffFirst = (id: string | null) => staff.find((s) => s.id === id)?.firstName ?? "the team";
 
   const inRange = reviewInvites.filter(
     (i) => i.sentAt >= range.from && i.sentAt <= range.to

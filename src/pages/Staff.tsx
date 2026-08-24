@@ -84,14 +84,14 @@ function StaffForm({
 export function StaffPage() {
   const { staff, addStaff, editStaff } = useStore();
   const inRange = useReviewsInRange();
-  const [openStaffId, setOpenStaffId] = useState<number | null>(null);
+  const [openStaffId, setOpenStaffId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState("");
 
-  const ratingsFor = (id: number) => inRange.filter((r) => r.staffId === id);
-  const avgFor = (id: number) => {
+  const ratingsFor = (id: string) => inRange.filter((r) => r.staffId === id);
+  const avgFor = (id: string) => {
     const mine = ratingsFor(id);
     return mine.length ? mine.reduce((a, r) => a + r.staffStars, 0) / mine.length : 0;
   };
@@ -193,11 +193,13 @@ export function StaffPage() {
         <StaffForm
           title="Add staff"
           initial={{ firstName: "", surname: "", webhookUrl: "" }}
-          onSave={(v) => {
-            const m = addStaff(v.firstName, v.surname, "Waiter", v.webhookUrl);
-            setSavedNote(
-              `${m.firstName} is on the team. Their QR code and review link are ready below.`
-            );
+          onSave={async (v) => {
+            const m = await addStaff(v.firstName, v.surname, "Waiter", v.webhookUrl);
+            if (m) {
+              setSavedNote(
+                `${m.firstName} is on the team. Their QR code and review link are ready below.`
+              );
+            }
             setAddOpen(false);
           }}
           onCancel={() => setAddOpen(false)}

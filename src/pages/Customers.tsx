@@ -4,12 +4,12 @@ import {
   dangerBtnCls, ghostBtnCls, inputCls, primaryBtnCls,
 } from "../components/ui";
 import { useStore } from "../data/store";
-import { TODAY } from "../data/generate";
+import { TODAY } from "../data/constants";
 import type { Contact } from "../data/types";
 import { daysBetween, fmtDate, normalizePhone, plural } from "../lib/format";
 
 /** PRD §7: any active offer must surface plainly wherever a contact is found. */
-function ActiveOfferNote({ contactId }: { contactId: number }) {
+function ActiveOfferNote({ contactId }: { contactId: string }) {
   const { activeOfferFor, markClaimed } = useStore();
   const offer = activeOfferFor(contactId);
   if (!offer) return null;
@@ -36,7 +36,7 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
   const { contacts, sendReviewRequest } = useStore();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Contact[] | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sent, setSent] = useState<Contact | null>(null);
 
   const recent = useMemo(
@@ -127,9 +127,9 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
         </button>
         <button
           disabled={selectedId === null}
-          onClick={() => {
+          onClick={async () => {
             if (selectedId === null) return;
-            sendReviewRequest(selectedId, null);
+            await sendReviewRequest(selectedId, null);
             setSent(contacts.find((c) => c.id === selectedId) ?? null);
           }}
           className={primaryBtnCls}
@@ -147,9 +147,9 @@ export function CustomersPage() {
   const [sendOpen, setSendOpen] = useState(false);
   const [draft, setDraft] = useState({ name: "", phone: "" });
   const [draftErr, setDraftErr] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ name: "", phone: "" });
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState("");
 
   const sorted = useMemo(
@@ -157,13 +157,14 @@ export function CustomersPage() {
     [contacts]
   );
 
-  const saveNew = () => {
+  const saveNew = async () => {
     if (!draft.name.trim()) return setDraftErr("Enter the customer's name.");
     if (!draft.phone.trim()) return setDraftErr("Enter a WhatsApp number.");
     const existing = contacts.find(
       (x) => normalizePhone(x.phone) === normalizePhone(draft.phone)
     );
-    const c = addContact(draft.name, draft.phone, "Manager");
+    const c = await addContact(draft.name, draft.phone, "Manager");
+    if (!c) return setDraftErr("Could not save the contact. Please try again.");
     setSavedNote(
       existing
         ? `${c.name} is already in your list. We matched them by phone and noted the visit.`

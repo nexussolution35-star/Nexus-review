@@ -3,8 +3,10 @@ export type IssueStatus = "new" | "fixing" | "fixed";
 export type GoogleStatus = "invited" | "clicked" | "posted" | null;
 export type StaffCategory = "Waiter";
 
+// All ids are Supabase UUIDs.
+
 export interface StaffMember {
-  id: number;
+  id: string;
   firstName: string;
   surname: string;
   category: StaffCategory;
@@ -13,7 +15,7 @@ export interface StaffMember {
 }
 
 export interface Contact {
-  id: number;
+  id: string;
   name: string;
   phone: string;
   addedBy: string;
@@ -24,16 +26,16 @@ export interface Contact {
 }
 
 export interface Review {
-  id: number;
-  contactId: number | null;
+  id: string;
+  contactId: string | null;
   dinerName: string;
-  staffId: number;
+  staffId: string | null;
   staffStars: number;
   staffComment: string | null;
   overallStars: number;
   route: Route;
   issueCategory: string | null;
-  assignedStaffId: number | null;
+  assignedStaffId: string | null;
   status: IssueStatus | null;
   googleStatus: GoogleStatus;
   createdAt: string; // ISO date
@@ -41,7 +43,7 @@ export interface Review {
 
 /** A diner inside the review window: asked, waiting to hear back. */
 export interface PendingInvite {
-  id: number;
+  id: string;
   name: string;
   table: number;
   scannedAt: string; // HH:mm
@@ -57,33 +59,27 @@ export type CampaignKind =
   | "winback3"
   | "winback4";
 
-/**
- * A review request sent from the POS (Add contact, then Send review). We know
- * who we sent to and when. The diner "engaged" when a name and number come
- * back, matched by phone. If nothing comes back in 48 hours we nudge, and
- * again 48 hours after that. Any engagement stops the sequence.
- */
 export type ReviewInviteStatus =
-  | "waiting" // sent, no reminder yet, not engaged
-  | "reminded1" // first 48 hour reminder went out
-  | "reminded2" // second 48 hour reminder went out
-  | "engaged" // name and number came back
-  | "reviewed"; // they left a rating
+  | "waiting"
+  | "reminded1"
+  | "reminded2"
+  | "engaged"
+  | "reviewed";
 
 export interface ReviewInvite {
-  id: number;
-  contactId: number;
+  id: string;
+  contactId: string;
   phone: string; // the match key
-  staffId: number | null; // whose review link was sent
-  sentAt: string; // ISO date the request went out
+  staffId: string | null;
+  sentAt: string;
   followUp1At: string | null;
   followUp2At: string | null;
-  engagedAt: string | null; // name and number came back
-  reviewedAt: string | null; // rating submitted
+  engagedAt: string | null;
+  reviewedAt: string | null;
 }
 
 export interface Campaign {
-  id: number;
+  id: string;
   kind: CampaignKind;
   name: string;
   template: string;
@@ -96,19 +92,19 @@ export interface Campaign {
 export type WinbackStage = 1 | 2 | 3 | 4;
 
 export interface WinbackEntry {
-  id: number;
-  contactId: number;
+  id: string;
+  contactId: string;
   stage: WinbackStage;
-  enteredAt: string; // ISO date the contact entered this stage
-  sentAt: string | null; // when the WhatsApp message went out
-  offerExpiresAt: string; // ISO date
+  enteredAt: string;
+  sentAt: string | null;
+  offerExpiresAt: string;
   claimedAt: string | null;
   expiredAt: string | null;
-  voided: boolean; // true when the diner came back without wanting the offer
+  voided: boolean;
 }
 
 export interface GooglePublicReview {
-  id: number;
+  id: string;
   author: string;
   stars: number;
   text: string;
@@ -116,9 +112,9 @@ export interface GooglePublicReview {
 }
 
 export interface WebhookSend {
-  id: number;
-  campaignId: number;
-  contactId: number;
-  staffId: number | null;
+  id: string;
+  campaignId: string;
+  contactId: string;
+  staffId: string | null;
   queuedAt: string;
 }

@@ -3,7 +3,7 @@ import type { ComponentType } from "react";
 import { ClockIcon, GlobeIcon, RotateIcon, StarIcon, UsersIcon } from "../components/icons";
 import { Card } from "../components/ui";
 import { useStore } from "../data/store";
-import { TODAY } from "../data/generate";
+import { TODAY } from "../data/constants";
 import { addDays, plural } from "../lib/format";
 
 /**

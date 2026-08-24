@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RESTAURANT_NAME } from "../../data/generate";
+import { RESTAURANT_NAME } from "../../data/constants";
 
 /** Centered card shell shared by Sign in and Sign up, matching the app style. */
 export function AuthShell({

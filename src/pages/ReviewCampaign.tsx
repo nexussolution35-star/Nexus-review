@@ -21,35 +21,35 @@ export function ReviewCampaignPage() {
   );
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", template: "", webhookUrl: "" });
   const [formErr, setFormErr] = useState("");
   // Editing a follow up campaign.
-  const [fuEditId, setFuEditId] = useState<number | null>(null);
+  const [fuEditId, setFuEditId] = useState<string | null>(null);
   const [fuForm, setFuForm] = useState({ name: "", template: "", webhookUrl: "" });
   const [fuErr, setFuErr] = useState("");
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
-  const [selected, setSelected] = useState<number[]>([]);
-  const [queues, setQueues] = useState<Record<number, Queue>>({});
+  const [selected, setSelected] = useState<string[]>([]);
+  const [queues, setQueues] = useState<Record<string, Queue>>({});
 
   /* Demo: one batch every 6 seconds simulates the 10 contacts per minute rule. */
   useEffect(() => {
     const t = setInterval(() => {
       setQueues((qs) => {
         let changed = false;
-        const next: Record<number, Queue> = {};
+        const next: Record<string, Queue> = {};
         Object.entries(qs).forEach(([cid, q]) => {
           if (q.pending.length) {
             changed = true;
             const batch = q.pending.slice(0, 10);
-            next[Number(cid)] = {
+            next[cid] = {
               ...q,
               pending: q.pending.slice(10),
               sentPhones: [...q.sentPhones, ...batch],
             };
-          } else next[Number(cid)] = q;
+          } else next[cid] = q;
         });
         return changed ? next : qs;
       });

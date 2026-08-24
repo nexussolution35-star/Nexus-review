@@ -31,7 +31,7 @@ export function ReviewListCard({
   limit?: number;
 }) {
   const { staff } = useStore();
-  const staffFirst = (id: number | null) =>
+  const staffFirst = (id: string | null) =>
     staff.find((s) => s.id === id)?.firstName ?? "The team";
 
   return (

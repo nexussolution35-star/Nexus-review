@@ -6,7 +6,7 @@ import {
   GOOGLE_INVITE_MIN_COMBINED,
   GOOGLE_REVIEW_URL,
   RESTAURANT_NAME,
-} from "../../data/generate";
+} from "../../data/constants";
 
 /**
  * PRD §4: the customer facing mobile page behind each staff member's QR code.
