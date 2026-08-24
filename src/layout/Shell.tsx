@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { DateRangeControl } from "../components/DateRangeControl";
+import { useAuth } from "../data/auth";
 
 interface NavChild {
   to: string;
@@ -84,10 +85,13 @@ export function Shell() {
         .sort((a, b) => b.length - a.length)[0] ?? "/";
   const [title, subtitle] = TITLES[titleKey];
 
-  // Placeholder until Supabase Auth is wired. It will become
-  // supabase.auth.signOut() then a redirect to the login page.
-  const signOut = () => {
-    window.location.assign("/");
+  const { ready, signOut: doSignOut } = useAuth();
+  const navigate = useNavigate();
+  const signOut = async () => {
+    await doSignOut();
+    // When auth is live, land on the sign in page. In the seed-only preview
+    // (no Supabase yet) just return to the dashboard.
+    navigate(ready ? "/login" : "/");
   };
 
   const linkCls = (isActive: boolean, child: boolean) =>
