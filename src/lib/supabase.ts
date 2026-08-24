@@ -7,8 +7,9 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const supabaseReady = Boolean(url && anonKey);
 
-// A single shared client. When env vars are missing (e.g. a preview before
-// Supabase is wired), supabaseReady is false and callers fall back to seed data.
+// A single shared client. When env vars are missing, supabaseReady is false,
+// the auth gate stays open, and the store loads nothing (there is no mock data
+// fallback). Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable it.
 export const supabase = supabaseReady
   ? createClient(url!, anonKey!, {
       auth: { persistSession: true, autoRefreshToken: true },
