@@ -93,17 +93,26 @@ Deno.serve(async (req) => {
     return json({ error: "This campaign has no valid webhook URL set" }, 422);
   }
 
-  // 3. Build the diner review link from a staff QR slug.
+  // 3. Build the diner review link from a staff QR slug. Priority:
+  //    a) an explicitly chosen staff member,
+  //    b) the logged-in staff member (so Dan's send uses Dan's link),
+  //    c) any staff member, as a last resort (e.g. a manager with none chosen).
   let staff: { id: string; first_name: string; surname: string; qr_slug: string } | null = null;
-  const staffSel = admin
-    .from("staff")
-    .select("id, first_name, surname, qr_slug")
-    .eq("tenant_id", tenantId);
+  const staffCols = "id, first_name, surname, qr_slug";
   if (staffId) {
-    const { data } = await staffSel.eq("id", staffId).maybeSingle();
+    const { data } = await admin
+      .from("staff").select(staffCols).eq("tenant_id", tenantId).eq("id", staffId).maybeSingle();
     staff = data;
-  } else {
-    const { data } = await staffSel.order("first_name").limit(1).maybeSingle();
+  }
+  if (!staff) {
+    // The caller's own staff record, if they are a staff member.
+    const { data } = await admin
+      .from("staff").select(staffCols).eq("tenant_id", tenantId).eq("user_id", uid).maybeSingle();
+    staff = data;
+  }
+  if (!staff) {
+    const { data } = await admin
+      .from("staff").select(staffCols).eq("tenant_id", tenantId).order("first_name").limit(1).maybeSingle();
     staff = data;
   }
   const reviewLink = staff ? `${SITE_URL}/r/${staff.qr_slug}` : `${SITE_URL}/`;
