@@ -38,6 +38,8 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
   const [results, setResults] = useState<Contact[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sent, setSent] = useState<Contact | null>(null);
+  const [sendErr, setSendErr] = useState("");
+  const [sending, setSending] = useState(false);
 
   const recent = useMemo(
     () => [...contacts].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, 3),
@@ -120,21 +122,30 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
           </EmptyState>
         ))}
 
+      {sendErr && <ErrorText>{sendErr}</ErrorText>}
+
       <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-line">
         <div className="flex-1" />
         <button onClick={onClose} className={ghostBtnCls}>
           Cancel
         </button>
         <button
-          disabled={selectedId === null}
+          disabled={selectedId === null || sending}
           onClick={async () => {
             if (selectedId === null) return;
-            await sendReviewRequest(selectedId, null);
+            setSending(true);
+            setSendErr("");
+            const { error } = await sendReviewRequest(selectedId, null);
+            setSending(false);
+            if (error) {
+              setSendErr(error);
+              return;
+            }
             setSent(contacts.find((c) => c.id === selectedId) ?? null);
           }}
           className={primaryBtnCls}
         >
-          Send review
+          {sending ? "Sending…" : "Send review"}
         </button>
       </div>
     </Card>

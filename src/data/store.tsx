@@ -51,7 +51,7 @@ interface StoreValue {
   saveCampaign: (patch: Omit<Campaign, "id"> & { id?: string }) => Promise<void>;
   markClaimed: (entryId: string) => Promise<void>;
   recordActivity: (contactId: string) => Promise<void>;
-  sendReviewRequest: (contactId: string, staffId: string | null) => Promise<void>;
+  sendReviewRequest: (contactId: string, staffId: string | null) => Promise<{ error: string | null }>;
   submitQrReview: (s: QrSubmission) => Promise<{ contact: Contact | null }>;
   activeOfferFor: (contactId: string) => { entry: WinbackEntry; campaign: Campaign } | null;
 }
@@ -339,24 +339,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [winbackEntries]);
 
   const sendReviewRequest = useCallback(
-    async (contactId: string, staffId: string | null) => {
-      if (!tenantId) return;
-      const contact = contacts.find((c) => c.id === contactId);
-      const today = iso(new Date());
-      const { data } = await supabase
-        .from("review_invites")
-        .insert({
-          tenant_id: tenantId,
-          contact_id: contactId,
-          phone: contact?.phone ?? "",
-          staff_id: staffId,
-          sent_at: today,
-        })
-        .select()
-        .single();
-      if (data) setReviewInvites((is) => [mapInvite(data), ...is]);
+    async (contactId: string, staffId: string | null): Promise<{ error: string | null }> => {
+      if (!tenantId) return { error: "Not signed in." };
+      // The Edge Function POSTs to the campaign's GoHighLevel webhook (the
+      // browser cannot call GHL directly) and records the send.
+      const { data, error } = await supabase.functions.invoke("send-review-request", {
+        body: { contactId, staffId },
+      });
+      if (error) {
+        // Surface the function's own message when it returned a JSON error body.
+        let msg = "We could not send that review request. Please try again.";
+        try {
+          const ctx = (error as { context?: Response }).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) msg = body.error;
+          }
+        } catch {
+          /* keep the generic message */
+        }
+        return { error: msg };
+      }
+      if (data?.invite) setReviewInvites((is) => [mapInvite(data.invite as Row), ...is]);
+      return { error: null };
     },
-    [tenantId, contacts]
+    [tenantId]
   );
 
   // The public QR flow writes through an Edge Function (unauthenticated diners
