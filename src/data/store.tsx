@@ -51,7 +51,7 @@ interface StoreValue {
   saveCampaign: (patch: Omit<Campaign, "id"> & { id?: string }) => Promise<void>;
   markClaimed: (entryId: string) => Promise<void>;
   recordActivity: (contactId: string) => Promise<void>;
-  sendReviewRequest: (contactId: string, staffId: string | null) => Promise<{ error: string | null }>;
+  sendReviewRequest: (contactId: string, staffId: string | null, campaignId?: string) => Promise<{ error: string | null }>;
   submitQrReview: (s: QrSubmission) => Promise<{ contact: Contact | null }>;
   activeOfferFor: (contactId: string) => { entry: WinbackEntry; campaign: Campaign } | null;
 }
@@ -339,12 +339,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [winbackEntries]);
 
   const sendReviewRequest = useCallback(
-    async (contactId: string, staffId: string | null): Promise<{ error: string | null }> => {
+    async (contactId: string, staffId: string | null, campaignId?: string): Promise<{ error: string | null }> => {
       if (!tenantId) return { error: "Not signed in." };
       // The Edge Function POSTs to the campaign's GoHighLevel webhook (the
       // browser cannot call GHL directly) and records the send.
       const { data, error } = await supabase.functions.invoke("send-review-request", {
-        body: { contactId, staffId },
+        body: { contactId, staffId, campaignId },
       });
       if (error) {
         // Surface the function's own message when it returned a JSON error body.

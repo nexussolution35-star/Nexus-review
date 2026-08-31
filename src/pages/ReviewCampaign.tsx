@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card, EmptyState, ErrorText, FieldLabel, Pill,
   ghostBtnCls, inputCls, primaryBtnCls,
@@ -7,13 +7,12 @@ import { useStore } from "../data/store";
 import type { Campaign } from "../data/types";
 
 interface Queue {
-  pending: string[];
   sentPhones: string[];
-  totalQueued: number;
+  failed: { phone: string; reason: string }[];
 }
 
 export function ReviewCampaignPage() {
-  const { campaigns, contacts, saveCampaign } = useStore();
+  const { campaigns, contacts, saveCampaign, sendReviewRequest } = useStore();
   const reviewCampaigns = useMemo(() => campaigns.filter((c) => c.kind === "review"), [campaigns]);
   const followUps = useMemo(
     () => campaigns.filter((c) => c.kind === "review_followup1" || c.kind === "review_followup2"),
@@ -33,29 +32,7 @@ export function ReviewCampaignPage() {
   const [pickerSearch, setPickerSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [queues, setQueues] = useState<Record<string, Queue>>({});
-
-  /* Demo: one batch every 6 seconds simulates the 10 contacts per minute rule. */
-  useEffect(() => {
-    const t = setInterval(() => {
-      setQueues((qs) => {
-        let changed = false;
-        const next: Record<string, Queue> = {};
-        Object.entries(qs).forEach(([cid, q]) => {
-          if (q.pending.length) {
-            changed = true;
-            const batch = q.pending.slice(0, 10);
-            next[cid] = {
-              ...q,
-              pending: q.pending.slice(10),
-              sentPhones: [...q.sentPhones, ...batch],
-            };
-          } else next[cid] = q;
-        });
-        return changed ? next : qs;
-      });
-    }, 6000);
-    return () => clearInterval(t);
-  }, []);
+  const [sending, setSending] = useState(false);
 
   const openCreate = () => {
     setForm({ name: "", template: "", webhookUrl: "" });
@@ -91,11 +68,11 @@ export function ReviewCampaignPage() {
 
   if (openCampaign) {
     const q = queues[openCampaign.id];
-    const queuedSet = new Set(q ? [...q.pending, ...q.sentPhones] : []);
+    const sentSet = new Set(q ? q.sentPhones : []);
     const filtered = contacts.filter((ct) =>
       (ct.name + " " + ct.phone).toLowerCase().includes(pickerSearch.toLowerCase())
     );
-    const selectable = filtered.filter((ct) => !queuedSet.has(ct.phone));
+    const selectable = filtered.filter((ct) => !sentSet.has(ct.phone));
     const allSelected = selectable.length > 0 && selectable.every((ct) => selected.includes(ct.id));
     const toggleAll = () =>
       setSelected(
@@ -103,21 +80,25 @@ export function ReviewCampaignPage() {
           ? selected.filter((id) => !selectable.some((ct) => ct.id === id))
           : [...new Set([...selected, ...selectable.map((ct) => ct.id)])]
       );
-    const queueForSending = () => {
-      const chosen = contacts.filter((c) => selected.includes(c.id));
-      setQueues((qs) => {
-        const cur = qs[openCampaign.id] ?? { pending: [], sentPhones: [], totalQueued: 0 };
-        const existing = new Set([...cur.pending, ...cur.sentPhones]);
-        const fresh = chosen.map((c) => c.phone).filter((p) => !existing.has(p));
-        return {
-          ...qs,
-          [openCampaign.id]: {
-            ...cur,
-            pending: [...cur.pending, ...fresh],
-            totalQueued: cur.totalQueued + fresh.length,
-          },
-        };
-      });
+    // Send each chosen contact through the Edge Function, which POSTs to this
+    // campaign's webhook and records the send. Sent one at a time so partial
+    // failures are reported and already sent contacts are not sent twice.
+    const sendSelected = async () => {
+      const chosen = contacts.filter(
+        (c) => selected.includes(c.id) && !sentSet.has(c.phone)
+      );
+      if (!chosen.length) return;
+      setSending(true);
+      for (const c of chosen) {
+        const { error } = await sendReviewRequest(c.id, null, openCampaign.id);
+        setQueues((qs) => {
+          const cur = qs[openCampaign.id] ?? { sentPhones: [], failed: [] };
+          return error
+            ? { ...qs, [openCampaign.id]: { ...cur, failed: [...cur.failed, { phone: c.phone, reason: error }] } }
+            : { ...qs, [openCampaign.id]: { ...cur, sentPhones: [...cur.sentPhones, c.phone] } };
+        });
+      }
+      setSending(false);
       setSelected([]);
       setPickerOpen(false);
       setPickerSearch("");
@@ -163,24 +144,21 @@ export function ReviewCampaignPage() {
             </button>
           </div>
           <p className="m-0 mb-3 text-[12.5px] text-sub">
-            Queued contacts are sent to this campaign's webhook in batches of 10 per minute.
+            Each contact you send is posted to this campaign's webhook, which fires the WhatsApp
+            message. Contacts already sent are not sent again.
           </p>
 
-          {q && q.totalQueued > 0 && (
+          {q && (q.sentPhones.length > 0 || q.failed.length > 0) && (
             <div className="bg-accentsoft rounded-lg px-3.5 py-3 mb-3">
               <p className="m-0 text-[13px] font-bold text-accent">
-                {q.totalQueued} queued · {q.sentPhones.length} sent · {q.pending.length} waiting
-                {q.pending.length === 0 ? " · complete" : ""}
+                {q.sentPhones.length} sent to the webhook
+                {q.failed.length ? ` · ${q.failed.length} could not send` : ""}
               </p>
-              <div className="h-2 bg-white rounded-full mt-2 overflow-hidden">
-                <div
-                  className="h-full bg-accent rounded-full transition-all duration-500"
-                  style={{ width: `${Math.round((q.sentPhones.length / q.totalQueued) * 100)}%` }}
-                />
-              </div>
-              <p className="m-0 mt-1.5 text-xs text-accent">
-                The demo runs one batch every 6 seconds to simulate 10 per minute.
-              </p>
+              {q.failed.length > 0 && (
+                <p className="m-0 mt-1 text-xs text-bad">
+                  {q.failed[q.failed.length - 1].reason}
+                </p>
+              )}
             </div>
           )}
 
@@ -201,7 +179,7 @@ export function ReviewCampaignPage() {
               <div className="max-h-56 overflow-y-auto">
                 {filtered.length ? (
                   filtered.map((ct) => {
-                    const already = queuedSet.has(ct.phone);
+                    const already = sentSet.has(ct.phone);
                     return (
                       <label
                         key={ct.id}
@@ -223,12 +201,7 @@ export function ReviewCampaignPage() {
                         />
                         <span className="font-semibold flex-1">{ct.name}</span>
                         <span className="text-sub">{ct.phone}</span>
-                        {already && q && (
-                          <Pill
-                            text={q.sentPhones.includes(ct.phone) ? "Sent" : "Queued"}
-                            tone={q.sentPhones.includes(ct.phone) ? "green" : "amber"}
-                          />
-                        )}
+                        {already && <Pill text="Sent" tone="green" />}
                       </label>
                     );
                   })
@@ -237,11 +210,15 @@ export function ReviewCampaignPage() {
                 )}
               </div>
               <div className="flex gap-2 mt-3">
-                <button onClick={() => { setPickerOpen(false); setSelected([]); }} className={ghostBtnCls}>
+                <button
+                  onClick={() => { setPickerOpen(false); setSelected([]); }}
+                  disabled={sending}
+                  className={ghostBtnCls}
+                >
                   Cancel
                 </button>
-                <button onClick={queueForSending} disabled={!selected.length} className={primaryBtnCls}>
-                  Queue for sending{selected.length ? ` (${selected.length})` : ""}
+                <button onClick={sendSelected} disabled={!selected.length || sending} className={primaryBtnCls}>
+                  {sending ? "Sending…" : `Send now${selected.length ? ` (${selected.length})` : ""}`}
                 </button>
               </div>
             </div>
