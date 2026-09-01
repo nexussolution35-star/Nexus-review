@@ -30,6 +30,18 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, "Content-Type": "application/json" },
   });
 
+// Convert a South African phone number to E.164 (+27XXXXXXXXX). Leaves numbers
+// that already look international untouched.
+function toE164(raw: string): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (raw.trim().startsWith("+")) return "+" + digits;
+  if (digits.startsWith("27")) return "+" + digits;
+  if (digits.startsWith("0")) return "+27" + digits.slice(1);
+  if (digits.length === 9) return "+27" + digits; // 9 digits, missing the leading 0
+  return "+" + digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -119,10 +131,16 @@ Deno.serve(async (req) => {
   const restaurant = RESTAURANT_FALLBACK;
   const sentAt = new Date().toISOString();
 
+  // WhatsApp needs the number in international (E.164) format. South African
+  // numbers are stored locally as 0XX XXX XXXX; convert to +27XXXXXXXXX so GHL
+  // can actually message the contact.
+  const phoneE164 = toE164(contact.phone);
+
   // 4. POST to the GHL webhook.
   const outbound = {
     name: contact.name,
-    phone: contact.phone,
+    phone: phoneE164,
+    phone_local: contact.phone,
     review_link: reviewLink,
     restaurant,
     campaign: campaign.name,
