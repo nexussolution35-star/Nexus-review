@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { iso, normalizePhone } from "../lib/format";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./auth";
-import { DATA_START, TODAY } from "./constants";
+import { DATA_START, TODAY, DEMO_WINBACK_DELAY_MIN } from "./constants";
 import type {
   Campaign,
   Contact,
@@ -50,6 +50,7 @@ interface StoreValue {
   editStaff: (id: string, patch: { firstName: string; surname: string; webhookUrl: string }) => Promise<void>;
   saveCampaign: (patch: Omit<Campaign, "id"> & { id?: string }) => Promise<void>;
   markClaimed: (entryId: string) => Promise<void>;
+  scheduleWinback: (contactId: string, stage: WinbackEntry["stage"]) => Promise<{ error: string | null }>;
   recordActivity: (contactId: string) => Promise<void>;
   sendReviewRequest: (contactId: string, staffId: string | null, campaignId?: string) => Promise<{ error: string | null }>;
   submitQrReview: (s: QrSubmission) => Promise<{ contact: Contact | null }>;
@@ -117,6 +118,8 @@ const mapWinback = (r: Row): WinbackEntry => ({
   claimedAt: dnull(r.claimed_at),
   expiredAt: dnull(r.expired_at),
   voided: !!r.voided,
+  scheduledSendAt: (r.scheduled_send_at as string) ?? null,
+  messageSentAt: (r.message_sent_at as string) ?? null,
 });
 const mapInvite = (r: Row): ReviewInvite => ({
   id: r.id as string,
@@ -338,6 +341,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [winbackEntries]);
 
+  // Schedule a win-back message. The background job fires it to the win-back
+  // webhook once it is due. Production waits 14 days; the demo waits 5 minutes.
+  const scheduleWinback = useCallback(
+    async (contactId: string, stage: WinbackEntry["stage"]): Promise<{ error: string | null }> => {
+      if (!tenantId) return { error: "Not signed in." };
+      const now = new Date();
+      const dueAt = new Date(now.getTime() + DEMO_WINBACK_DELAY_MIN * 60 * 1000);
+      const { data, error } = await supabase
+        .from("winback_state")
+        .insert({
+          tenant_id: tenantId,
+          contact_id: contactId,
+          stage,
+          entered_at: now.toISOString(),
+          scheduled_send_at: dueAt.toISOString(),
+          voided: false,
+        })
+        .select()
+        .single();
+      if (error) return { error: "Could not schedule the win-back. Please try again." };
+      if (data) setWinbackEntries((es) => [mapWinback(data as Row), ...es]);
+      return { error: null };
+    },
+    [tenantId]
+  );
+
   const sendReviewRequest = useCallback(
     async (contactId: string, staffId: string | null, campaignId?: string): Promise<{ error: string | null }> => {
       if (!tenantId) return { error: "Not signed in." };
@@ -376,14 +405,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       loaded, staff, contacts, reviews, pendingInvites, campaigns, winbackEntries,
       googleReviews, reviewInvites, range, setRange, resetRange, addContact, editContact,
-      deleteContact, addStaff, editStaff, saveCampaign, markClaimed, recordActivity,
-      sendReviewRequest, submitQrReview, activeOfferFor,
+      deleteContact, addStaff, editStaff, saveCampaign, markClaimed, scheduleWinback,
+      recordActivity, sendReviewRequest, submitQrReview, activeOfferFor,
     }),
     [
       loaded, staff, contacts, reviews, campaigns, winbackEntries, googleReviews,
       reviewInvites, range, resetRange, addContact, editContact, deleteContact,
-      addStaff, editStaff, saveCampaign, markClaimed, recordActivity, sendReviewRequest,
-      submitQrReview, activeOfferFor,
+      addStaff, editStaff, saveCampaign, markClaimed, scheduleWinback, recordActivity,
+      sendReviewRequest, submitQrReview, activeOfferFor,
     ]
   );
 

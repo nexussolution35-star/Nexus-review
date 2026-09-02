@@ -101,6 +101,8 @@ export interface WinbackEntry {
   claimedAt: string | null;
   expiredAt: string | null;
   voided: boolean;
+  scheduledSendAt: string | null; // when the win-back message is due to fire
+  messageSentAt: string | null; // when the webhook actually fired (null = not yet)
 }
 
 export interface GooglePublicReview {

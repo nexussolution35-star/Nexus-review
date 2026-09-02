@@ -4,9 +4,9 @@ import {
   ghostBtnCls, inputCls, primaryBtnCls,
 } from "../components/ui";
 import { useStore } from "../data/store";
-import { TODAY } from "../data/constants";
-import type { Campaign, WinbackEntry, WinbackStage } from "../data/types";
-import { daysBetween, fmtDate, plural } from "../lib/format";
+import { TODAY, DEMO_WINBACK_DELAY_MIN } from "../data/constants";
+import type { Campaign, Contact, WinbackEntry, WinbackStage } from "../data/types";
+import { daysBetween, fmtDate, normalizePhone, plural } from "../lib/format";
 
 const STAGE_RULES: Record<WinbackStage, string> = {
   1: "Fires after 14 days with no activity.",
@@ -16,11 +16,18 @@ const STAGE_RULES: Record<WinbackStage, string> = {
 };
 
 export function WinBackPage() {
-  const { campaigns, winbackEntries, contacts, markClaimed, saveCampaign } = useStore();
+  const { campaigns, winbackEntries, contacts, markClaimed, saveCampaign, scheduleWinback } = useStore();
   const [openStage, setOpenStage] = useState<WinbackStage | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState({ name: "", template: "", webhookUrl: "", offerText: "", expiryDays: 5 });
   const [formErr, setFormErr] = useState("");
+  // "Send this win back to a customer" picker.
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendQuery, setSendQuery] = useState("");
+  const [sendPickId, setSendPickId] = useState<string | null>(null);
+  const [sendErr, setSendErr] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledNote, setScheduledNote] = useState("");
 
   const wbCampaigns = useMemo(
     () =>
@@ -37,8 +44,13 @@ export function WinBackPage() {
 
   const entriesFor = (stage: WinbackStage) => {
     const all = winbackEntries.filter((e) => e.stage === stage);
+    // Scheduled but not yet fired by the background job.
+    const scheduled = all.filter(
+      (e) => !e.messageSentAt && e.scheduledSendAt && !e.claimedAt && !e.expiredAt && !e.voided
+    );
     const active = all.filter((e) => !e.claimedAt && !e.expiredAt && e.offerExpiresAt >= TODAY);
     return {
+      scheduled,
       active,
       waiting: active.filter((e) => e.sentAt),
       claimed: all.filter((e) => e.claimedAt),
@@ -52,13 +64,20 @@ export function WinBackPage() {
     const { campaign } = found;
     const lists = entriesFor(openStage);
 
-    const entryRow = (e: WinbackEntry, i: number, kind: "active" | "waiting" | "claimed" | "expired") => {
+    const entryRow = (e: WinbackEntry, i: number, kind: "scheduled" | "active" | "waiting" | "claimed" | "expired") => {
       const daysLeft = Math.max(0, daysBetween(TODAY, e.offerExpiresAt));
+      const minsLeft = e.scheduledSendAt
+        ? Math.max(0, Math.round((new Date(e.scheduledSendAt).getTime() - Date.now()) / 60000))
+        : 0;
       return (
         <div key={e.id} className={`flex items-center gap-3 py-2.5 flex-wrap ${i ? "border-t border-line" : ""}`}>
           <div className="flex-1 min-w-[160px]">
             <p className="m-0 text-[13px] font-semibold">{contactName(e.contactId)}</p>
             <p className="m-0 mt-0.5 text-xs text-sub">
+              {kind === "scheduled" &&
+                (minsLeft > 0
+                  ? `Win back message goes out in about ${plural(minsLeft, "minute", "minutes")}.`
+                  : "Win back message is going out now.")}
               {kind === "claimed" && e.claimedAt && `Claimed on ${fmtDate(e.claimedAt)}.`}
               {kind === "expired" &&
                 (e.voided
@@ -68,7 +87,9 @@ export function WinBackPage() {
                 `Offer sent ${e.sentAt ? fmtDate(e.sentAt) : "soon"}. ${plural(daysLeft, "day", "days")} left.`}
             </p>
           </div>
-          {kind === "active" || kind === "waiting" ? (
+          {kind === "scheduled" ? (
+            <Pill text={minsLeft > 0 ? `Sending in ${minsLeft}m` : "Sending now"} tone="amber" />
+          ) : kind === "active" || kind === "waiting" ? (
             <>
               <Pill
                 text={`${plural(daysLeft, "day", "days")} left`}
@@ -94,7 +115,7 @@ export function WinBackPage() {
       title: string,
       note: string,
       items: WinbackEntry[],
-      kind: "active" | "waiting" | "claimed" | "expired",
+      kind: "scheduled" | "active" | "waiting" | "claimed" | "expired",
       empty: string
     ) => (
       <div>
@@ -237,6 +258,106 @@ export function WinBackPage() {
             </div>
           </Card>
         )}
+
+        <Card className="border-accent mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <p className="m-0 text-[15px] font-semibold text-accent">Send this win back to a customer</p>
+            {!sendOpen && (
+              <button
+                onClick={() => { setSendOpen(true); setSendPickId(null); setSendQuery(""); setSendErr(""); setScheduledNote(""); }}
+                className={primaryBtnCls}
+              >
+                Choose a customer
+              </button>
+            )}
+          </div>
+          <p className="m-0 mb-2 text-[12.5px] text-sub">
+            The message is scheduled and sent automatically. For this demo it goes out about{" "}
+            {plural(DEMO_WINBACK_DELAY_MIN, "minute", "minutes")} later. In real use it waits 14 days
+            unless the customer comes back first.
+          </p>
+
+          {scheduledNote && (
+            <div className="bg-goodsoft text-good rounded-lg px-3.5 py-2.5 my-2 text-[13px] font-medium">
+              {scheduledNote}
+            </div>
+          )}
+
+          {sendOpen && (
+            <div className="mt-1">
+              <div className="flex flex-wrap gap-2 items-center mb-2">
+                <input
+                  value={sendQuery}
+                  onChange={(e) => setSendQuery(e.target.value)}
+                  placeholder="Search customers by name or number"
+                  className={`${inputCls} flex-1 min-w-[220px]`}
+                />
+              </div>
+              <div className="max-h-52 overflow-y-auto border border-line rounded-lg">
+                {(() => {
+                  const q = sendQuery.trim().toLowerCase();
+                  const qPhone = normalizePhone(sendQuery);
+                  const matches = contacts
+                    .filter(
+                      (c: Contact) =>
+                        !q ||
+                        c.name.toLowerCase().includes(q) ||
+                        (qPhone.length >= 3 && normalizePhone(c.phone).includes(qPhone))
+                    )
+                    .slice(0, 30);
+                  if (!matches.length) return <EmptyState>No customers match that search.</EmptyState>;
+                  return matches.map((c, i) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSendPickId(c.id)}
+                      className={`w-full text-left flex items-center gap-2 py-2.5 px-3 text-[13px] ${i ? "border-t border-line" : ""} ${sendPickId === c.id ? "bg-accentsoft" : "hover:bg-canvas"}`}
+                    >
+                      <span className="font-semibold flex-1">{c.name}</span>
+                      <span className="text-sub">{c.phone}</span>
+                      {sendPickId === c.id && <Pill text="Selected" tone="blue" />}
+                    </button>
+                  ));
+                })()}
+              </div>
+              {sendErr && <ErrorText>{sendErr}</ErrorText>}
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => { setSendOpen(false); setSendPickId(null); }} disabled={scheduling} className={ghostBtnCls}>
+                  Cancel
+                </button>
+                <button
+                  disabled={!sendPickId || scheduling}
+                  onClick={async () => {
+                    if (!sendPickId) return;
+                    setScheduling(true);
+                    setSendErr("");
+                    const { error } = await scheduleWinback(sendPickId, openStage);
+                    setScheduling(false);
+                    if (error) { setSendErr(error); return; }
+                    const who = contactName(sendPickId);
+                    setScheduledNote(
+                      `${who} is scheduled. The win back WhatsApp goes out in about ${plural(DEMO_WINBACK_DELAY_MIN, "minute", "minutes")}.`
+                    );
+                    setSendOpen(false);
+                    setSendPickId(null);
+                    setSendQuery("");
+                  }}
+                  className={primaryBtnCls}
+                >
+                  {scheduling ? "Scheduling…" : `Schedule (sends in ${DEMO_WINBACK_DELAY_MIN}m)`}
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {lists.scheduled.length > 0 &&
+          listCard(
+            "Scheduled to send",
+            "These win back messages are queued. The background job sends them when they are due.",
+            lists.scheduled,
+            "scheduled",
+            "Nothing scheduled."
+          )}
 
         {listCard(
           "Currently in this campaign",

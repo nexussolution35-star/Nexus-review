@@ -25,3 +25,8 @@ export const DEFAULT_STAFF_TEMPLATE =
   "Hi {name}, thanks for visiting {Restaurant name} today. Could you tell us how we did? Tap the link below. It takes 30 seconds and helps us serve you better.";
 
 export const REVIEW_FOLLOWUP_HOURS = 48;
+
+// Win-back timing. In production a win-back fires after 14 days of no response;
+// for the demo we fire it after a few minutes so it can be shown live.
+export const WINBACK_REAL_DELAY_DAYS = 14;
+export const DEMO_WINBACK_DELAY_MIN = 5;
