@@ -7,16 +7,14 @@ import { StoreProvider } from "./data/store";
 import { Shell } from "./layout/Shell";
 import { Dashboard } from "./pages/Dashboard";
 import { CustomersPage } from "./pages/Customers";
-import { StaffPage } from "./pages/Staff";
 import { ReviewCampaignPage } from "./pages/ReviewCampaign";
-import { WinBackPage } from "./pages/WinBack";
 import { QrFlow } from "./pages/qr/QrFlow";
 import { Login } from "./pages/auth/Login";
 import { Signup } from "./pages/auth/Signup";
 import {
   BadPage, GoodPage, GooglePage, ReviewsHome, SentPage,
 } from "./pages/reviews/ReviewsPages";
-import { StatsOverview, StatsReviews, StatsStaff } from "./pages/stats/Stats";
+import { StatsOverview, StatsReviews } from "./pages/stats/Stats";
 
 /**
  * Auth gate. When Supabase is configured, unauthenticated users are sent to
@@ -55,12 +53,9 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="/reviews/bad" element={<BadPage />} />
                 <Route path="/reviews/google" element={<GooglePage />} />
                 <Route path="/customers" element={<CustomersPage />} />
-                <Route path="/staff" element={<StaffPage />} />
                 <Route path="/review-campaign" element={<ReviewCampaignPage />} />
-                <Route path="/win-back" element={<WinBackPage />} />
                 <Route path="/statistics" element={<StatsOverview />} />
                 <Route path="/statistics/reviews" element={<StatsReviews />} />
-                <Route path="/statistics/staff" element={<StatsStaff />} />
               </Route>
             </Route>
           </Routes>

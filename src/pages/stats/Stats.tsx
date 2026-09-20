@@ -133,7 +133,6 @@ export function StatsOverview() {
 
 export function StatsReviews() {
   const inRange = useReviewsInRange();
-  const { staff } = useStore();
   const weekly = useWeeklyRating();
   const monthly = useMonthly();
 
@@ -151,12 +150,6 @@ export function StatsReviews() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
   }, [inRange]);
-
-  const staffTable = staff.map((s) => {
-    const mine = inRange.filter((r) => r.staffId === s.id);
-    const avg = mine.length ? mine.reduce((a, r) => a + r.staffStars, 0) / mine.length : 0;
-    return { id: s.id, name: `${s.firstName} ${s.surname}`, ratings: mine.length, avg };
-  });
 
   return (
     <div style={grid2}>
@@ -206,71 +199,6 @@ export function StatsReviews() {
             No issues in these dates. Nice work.
           </p>
         )}
-      </ChartCard>
-      <ChartCard title="How is each server rated?" subtitle="Ratings collected and average stars per staff member in range">
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr className="text-sub text-[11.5px] text-left">
-              <th className="py-2 px-1.5 border-b border-line font-medium">Staff member</th>
-              <th className="py-2 px-1.5 border-b border-line font-medium text-right">Ratings</th>
-              <th className="py-2 px-1.5 border-b border-line font-medium text-right">Average</th>
-            </tr>
-          </thead>
-          <tbody>
-            {staffTable.map((sr) => (
-              <tr key={sr.id}>
-                <td className="py-2.5 px-1.5 border-b border-line">{sr.name}</td>
-                <td className="py-2.5 px-1.5 border-b border-line text-right text-sub">{sr.ratings}</td>
-                <td
-                  className={`py-2.5 px-1.5 border-b border-line text-right font-semibold ${
-                    sr.avg >= 4.5 ? "text-good" : "text-warn"
-                  }`}
-                >
-                  {sr.ratings ? sr.avg.toFixed(1) + "★" : "None yet"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ChartCard>
-    </div>
-  );
-}
-
-export function StatsStaff() {
-  const inRange = useReviewsInRange();
-  const { staff } = useStore();
-
-  /* PRD §2.5: staff statistics keep ONLY the per staff star distribution. */
-  const dist = staff.map((s) => {
-    const mine = inRange.filter((r) => r.staffId === s.id);
-    return {
-      name: s.firstName,
-      "5★": mine.filter((r) => r.staffStars === 5).length,
-      "4★": mine.filter((r) => r.staffStars === 4).length,
-      "3★": mine.filter((r) => r.staffStars === 3).length,
-      "2★": mine.filter((r) => r.staffStars === 2).length,
-      "1★": mine.filter((r) => r.staffStars === 1).length,
-    };
-  });
-
-  return (
-    <div style={grid2}>
-      <ChartCard title="How do each server's stars distribute?" subtitle="Count of 1 to 5 star ratings per staff member in range">
-        <ResponsiveContainer width="100%" height={Math.max(230, staff.length * 52)}>
-          <BarChart data={dist} layout="vertical" margin={{ left: 8 }}>
-            <CartesianGrid stroke={C.border} horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11, fill: C.sub }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: C.text }} width={70} />
-            <Tooltip contentStyle={tipStyle} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="5★" stackId="d" fill={C.green} />
-            <Bar dataKey="4★" stackId="d" fill="#A5D6A0" />
-            <Bar dataKey="3★" stackId="d" fill={C.amber} />
-            <Bar dataKey="2★" stackId="d" fill="#F0A08C" />
-            <Bar dataKey="1★" stackId="d" fill={C.red} radius={[0, 6, 6, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
       </ChartCard>
     </div>
   );

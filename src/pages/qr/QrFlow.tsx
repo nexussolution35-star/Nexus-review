@@ -5,17 +5,14 @@ import { supabase, supabaseReady } from "../../lib/supabase";
 import { GOOGLE_REVIEW_URL } from "../../data/constants";
 
 /**
- * PRD §4: the customer facing mobile page behind each staff member's QR code.
+ * The customer facing mobile page behind the restaurant's review QR / link.
  * Diners are anonymous, so this page loads its context and saves the review
- * through public Edge Functions (review-context, submit-review) rather than the
- * logged-in store. Step 1 captures the contact, step 2 takes two ratings, step
- * 3 shows the Google invite only when the overall rating is good AND the
- * combined score qualifies.
+ * through public Edge Functions (review-context, submit-review). Step 1 captures
+ * the contact, step 2 takes one overall rating, step 3 shows the Google invite
+ * for a good rating.
  */
 interface Context {
   found: boolean;
-  staffId?: string;
-  staffFirstName?: string;
   restaurant?: string;
   googleInviteMinCombined?: number;
   googleReviewUrl?: string | null;
@@ -30,9 +27,8 @@ export function QrFlow() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [err, setErr] = useState("");
-  const [staffStars, setStaffStars] = useState(0);
-  const [comment, setComment] = useState("");
   const [overallStars, setOverallStars] = useState(0);
+  const [comment, setComment] = useState("");
   const [result, setResult] = useState<{ invite: boolean } | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -43,9 +39,7 @@ export function QrFlow() {
         if (active) { setCtx({ found: false }); setLoading(false); }
         return;
       }
-      const { data, error } = await supabase.functions.invoke("review-context", {
-        body: { slug },
-      });
+      const { data, error } = await supabase.functions.invoke("review-context", { body: { slug } });
       if (!active) return;
       setCtx(error ? { found: false } : (data as Context));
       setLoading(false);
@@ -65,43 +59,28 @@ export function QrFlow() {
     return (
       <PhoneFrame restaurant="">
         <p className="text-lg font-bold">Hmm, that link does not look right.</p>
-        <p className="text-[14px] text-sub mt-2">
-          Please ask your server for a fresh QR code.
-        </p>
+        <p className="text-[14px] text-sub mt-2">Please ask a staff member for a fresh link.</p>
       </PhoneFrame>
     );
   }
 
   const restaurant = ctx.restaurant ?? "our restaurant";
-  const staffFirstName = ctx.staffFirstName ?? "the team";
-  const minCombined = ctx.googleInviteMinCombined ?? 7;
   const googleUrl = ctx.googleReviewUrl ?? GOOGLE_REVIEW_URL;
   const firstName = name.trim().split(" ")[0] || "there";
 
   const submit = async () => {
-    if (!staffStars) return setErr("Please tap a star for the service rating.");
-    if (!overallStars) return setErr("Please tap a star for your overall visit.");
+    if (!overallStars) return setErr("Please tap a star for your visit.");
     setSending(true);
     setErr("");
     const { data, error } = await supabase.functions.invoke("submit-review", {
-      body: {
-        slug,
-        name: name.trim(),
-        phone: phone.trim(),
-        staffStars,
-        staffComment: comment.trim() || null,
-        overallStars,
-      },
+      body: { slug, name: name.trim(), phone: phone.trim(), overallStars, comment: comment.trim() || null },
     });
     setSending(false);
     if (error) {
       setErr("Something went wrong sending your review. Please try again.");
       return;
     }
-    const invite = Boolean(
-      (data as { invite?: boolean })?.invite ??
-        (overallStars >= 4 && staffStars + overallStars >= minCombined)
-    );
+    const invite = Boolean((data as { invite?: boolean })?.invite ?? overallStars >= 4);
     setResult({ invite });
     setStep(3);
   };
@@ -112,9 +91,8 @@ export function QrFlow() {
         <>
           <p className="text-lg font-bold m-0">How did we do today?</p>
           <p className="text-[14px] text-sub mt-1.5">
-            Your visit matters to us at {restaurant}. Add your name and number, then leave a
-            quick rating. It takes 30 seconds, and {staffFirstName} would love to know how they
-            did.
+            Your visit matters to us at {restaurant}. Add your name and number, then leave a quick
+            rating. It takes 30 seconds and helps us serve you better.
           </p>
           <div className="mt-4 grid gap-3">
             <div>
@@ -158,13 +136,13 @@ export function QrFlow() {
 
       {step === 2 && (
         <>
-          <p className="text-lg font-bold m-0">Two quick ratings, {firstName}.</p>
+          <p className="text-lg font-bold m-0">One quick rating, {firstName}.</p>
           <div className="mt-5">
             <p className="text-[14px] font-semibold m-0">
-              How would you rate {staffFirstName}'s service to you today?
+              How would you rate your overall experience today at {restaurant}?
             </p>
             <div className="mt-2">
-              <StarInput value={staffStars} onChange={(n) => { setStaffStars(n); setErr(""); }} />
+              <StarInput value={overallStars} onChange={(n) => { setOverallStars(n); setErr(""); }} />
             </div>
             <textarea
               value={comment}
@@ -173,14 +151,6 @@ export function QrFlow() {
               placeholder="Anything you want to add? (optional)"
               className={`${inputCls} resize-y mt-2.5`}
             />
-          </div>
-          <div className="mt-5">
-            <p className="text-[14px] font-semibold m-0">
-              How would you rate the overall experience today at {restaurant}?
-            </p>
-            <div className="mt-2">
-              <StarInput value={overallStars} onChange={(n) => { setOverallStars(n); setErr(""); }} />
-            </div>
           </div>
           {err && <ErrorText>{err}</ErrorText>}
           <button onClick={submit} disabled={sending} className={`${primaryBtnCls} w-full mt-5 !py-3`}>
@@ -210,8 +180,8 @@ export function QrFlow() {
             <>
               <p className="text-lg font-bold m-0">Thank you, {firstName}.</p>
               <p className="text-[14px] text-sub mt-3 leading-relaxed">
-                We really appreciate you telling us. The team reads every single message and we
-                will use yours to do better. We hope to see you again soon.
+                We really appreciate you telling us. The team reads every single message and we will
+                use yours to do better. We hope to see you again soon.
               </p>
             </>
           )}
@@ -225,9 +195,7 @@ function PhoneFrame({ children, restaurant }: { children: React.ReactNode; resta
   return (
     <div className="min-h-screen bg-canvas flex items-start justify-center px-4 py-8">
       <div className="w-full max-w-md bg-surface border border-line rounded-2xl p-6">
-        <p className="text-[11px] text-faint tracking-wide uppercase mb-4">
-          {restaurant || " "}
-        </p>
+        <p className="text-[11px] text-faint tracking-wide uppercase mb-4">{restaurant || " "}</p>
         {children}
       </div>
     </div>

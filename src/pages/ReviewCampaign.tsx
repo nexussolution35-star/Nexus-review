@@ -90,7 +90,7 @@ export function ReviewCampaignPage() {
       if (!chosen.length) return;
       setSending(true);
       for (const c of chosen) {
-        const { error } = await sendReviewRequest(c.id, null, openCampaign.id);
+        const { error } = await sendReviewRequest(c.id, openCampaign.id);
         setQueues((qs) => {
           const cur = qs[openCampaign.id] ?? { sentPhones: [], failed: [] };
           return error

@@ -1,5 +1,4 @@
 import { Avatar, Card, EmptyState, ListRow, Pill, Stars } from "../../components/ui";
-import { useStore } from "../../data/store";
 import type { Review } from "../../data/types";
 import { fmtDate } from "../../lib/format";
 
@@ -13,10 +12,10 @@ const PLAIN_ISSUE: Record<string, string> = {
   Drinks: "Drinks issue",
 };
 
-export function issueLine(r: Review, staffName: string): string {
+export function issueLine(r: Review): string {
   const plain = r.issueCategory ? (PLAIN_ISSUE[r.issueCategory] ?? r.issueCategory) : "Issue";
-  if (r.status === "fixed") return `${plain}. ${staffName} fixed it.`;
-  return `${plain}. ${staffName} is on it.`;
+  if (r.status === "fixed") return `${plain}. Fixed.`;
+  return `${plain}. The team is on it.`;
 }
 
 export function ReviewListCard({
@@ -30,10 +29,6 @@ export function ReviewListCard({
   googleMode?: boolean;
   limit?: number;
 }) {
-  const { staff } = useStore();
-  const staffFirst = (id: string | null) =>
-    staff.find((s) => s.id === id)?.firstName ?? "The team";
-
   return (
     <Card className="py-1 px-4">
       {items.length ? (
@@ -52,15 +47,13 @@ export function ReviewListCard({
                 {r.staffComment ?? "Left a rating only."}
               </p>
               {r.route === "bad" && (
-                <p className="m-0 mt-1 text-[12.5px] text-sub">
-                  {issueLine(r, staffFirst(r.assignedStaffId))}
-                </p>
+                <p className="m-0 mt-1 text-[12.5px] text-sub">{issueLine(r)}</p>
               )}
             </div>
             {googleMode || r.googleStatus === "posted" ? (
               <Pill text="Posted on Google" tone="green" />
             ) : (
-              <Pill text={`Review given to ${staffFirst(r.staffId)}`} tone="blue" />
+              <Pill text={r.route === "bad" ? "Kept private" : "Logged"} tone="blue" />
             )}
           </ListRow>
         ))

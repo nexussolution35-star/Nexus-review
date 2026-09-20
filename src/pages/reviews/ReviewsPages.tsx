@@ -41,17 +41,16 @@ export function ReviewsHome() {
       </div>
       <ReviewListCard
         items={inRange}
-        emptyText="No reviews in these dates yet. Widen the date range above, or share a staff QR code after service."
+        emptyText="No reviews in these dates yet. Widen the date range above, or share your review QR code after service."
       />
     </>
   );
 }
 
 export function SentPage() {
-  const { reviewInvites, contacts, staff, range } = useStore();
+  const { reviewInvites, contacts, range } = useStore();
 
   const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "Contact";
-  const staffFirst = (id: string | null) => staff.find((s) => s.id === id)?.firstName ?? "the team";
 
   const inRange = reviewInvites.filter(
     (i) => i.sentAt >= range.from && i.sentAt <= range.to
@@ -90,9 +89,7 @@ export function SentPage() {
                 <div className="flex-1 min-w-0">
                   <p className="m-0 text-[13px] font-semibold">
                     {contactName(inv.contactId)}{" "}
-                    <span className="font-normal text-faint text-xs">
-                      · {inv.staffId ? `${staffFirst(inv.staffId)}'s link` : "review link"}
-                    </span>
+                    <span className="font-normal text-faint text-xs">· review link</span>
                   </p>
                   <p className="m-0 mt-0.5 text-xs text-sub">
                     Sent {fmtDate(inv.sentAt)}.{" "}

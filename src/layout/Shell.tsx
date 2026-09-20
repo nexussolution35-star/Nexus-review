@@ -30,16 +30,7 @@ const NAV: NavItem[] = [
     ],
   },
   { to: "/customers", label: "Customers" },
-  { to: "/staff", label: "Staff" },
-  {
-    to: "/campaigns",
-    label: "Campaigns",
-    section: true,
-    children: [
-      { to: "/review-campaign", label: "Review campaign" },
-      { to: "/win-back", label: "Win back campaign" },
-    ],
-  },
+  { to: "/review-campaign", label: "Review campaign" },
   {
     to: "/statistics",
     label: "Statistics",
@@ -47,7 +38,6 @@ const NAV: NavItem[] = [
     children: [
       { to: "/statistics", label: "Overview" },
       { to: "/statistics/reviews", label: "Reviews" },
-      { to: "/statistics/staff", label: "Staff" },
     ],
   },
 ];
@@ -60,12 +50,9 @@ const TITLES: Record<string, [string, string]> = {
   "/reviews/bad": ["Bad", "Unhappy diners. Things for your team to fix."],
   "/reviews/google": ["Google reviews", "Reviews the public can see on Google"],
   "/customers": ["Customers", "Your contact list, ready for campaigns"],
-  "/staff": ["Staff", "Your team and their personal QR codes"],
   "/review-campaign": ["Review campaign", "The WhatsApp flow that asks diners for a review"],
-  "/win-back": ["Win back campaign", "Bring lapsed customers back with offers"],
   "/statistics": ["Statistics", "All charts, graphs and numbers in one place"],
   "/statistics/reviews": ["Statistics. Reviews", "All review analytics"],
-  "/statistics/staff": ["Statistics. Staff", "How each server's stars distribute"],
 };
 
 export function Shell() {

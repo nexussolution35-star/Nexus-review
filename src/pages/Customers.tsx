@@ -4,33 +4,8 @@ import {
   dangerBtnCls, ghostBtnCls, inputCls, primaryBtnCls,
 } from "../components/ui";
 import { useStore } from "../data/store";
-import { TODAY } from "../data/constants";
 import type { Contact } from "../data/types";
-import { daysBetween, fmtDate, normalizePhone, plural } from "../lib/format";
-
-/** PRD §7: any active offer must surface plainly wherever a contact is found. */
-function ActiveOfferNote({ contactId }: { contactId: string }) {
-  const { activeOfferFor, markClaimed } = useStore();
-  const offer = activeOfferFor(contactId);
-  if (!offer) return null;
-  const daysLeft = Math.max(0, daysBetween(TODAY, offer.entry.offerExpiresAt));
-  return (
-    <span className="flex items-center gap-2 flex-wrap">
-      <span className="text-[12.5px] text-warn font-semibold">
-        Has an active offer: {offer.campaign.offerText}. {plural(daysLeft, "day", "days")} left.
-      </span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          markClaimed(offer.entry.id);
-        }}
-        className="text-xs px-2.5 py-1 rounded-lg bg-good text-white font-semibold"
-      >
-        Mark as claimed
-      </button>
-    </span>
-  );
-}
+import { fmtDate, normalizePhone } from "../lib/format";
 
 function SendReviewCard({ onClose }: { onClose: () => void }) {
   const { contacts, sendReviewRequest } = useStore();
@@ -71,9 +46,6 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
       <span className="text-[13px] font-semibold flex-1">{c.name}</span>
       <span className="text-[13px] text-sub">{c.phone}</span>
       {selectedId === c.id && <Pill text="Selected" tone="blue" />}
-      <span className="basis-full">
-        <ActiveOfferNote contactId={c.id} />
-      </span>
     </button>
   );
 
@@ -135,7 +107,7 @@ function SendReviewCard({ onClose }: { onClose: () => void }) {
             if (selectedId === null) return;
             setSending(true);
             setSendErr("");
-            const { error } = await sendReviewRequest(selectedId, null);
+            const { error } = await sendReviewRequest(selectedId);
             setSending(false);
             if (error) {
               setSendErr(error);
@@ -307,12 +279,7 @@ export function CustomersPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-[1.6fr_1.2fr_1.2fr_1fr_1.4fr] gap-2 py-3 text-[13px] items-center">
-                  <span className="font-semibold">
-                    {c.name}
-                    <span className="block">
-                      <ActiveOfferNote contactId={c.id} />
-                    </span>
-                  </span>
+                  <span className="font-semibold">{c.name}</span>
                   <span className="text-sub">{c.phone}</span>
                   <span className="text-sub">{c.addedBy}</span>
                   <span className="text-sub">{fmtDate(c.createdAt)}</span>

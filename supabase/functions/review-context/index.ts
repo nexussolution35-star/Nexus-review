@@ -1,6 +1,6 @@
-// Public: returns everything the diner review page needs, keyed by a staff
-// member's QR slug. Runs without a login (verify_jwt = false) because diners
-// are anonymous and cannot pass RLS. Uses the service role for the lookups.
+// Public: returns what the diner review page needs, keyed by a restaurant's
+// review slug. Runs without a login (verify_jwt = false) because diners are
+// anonymous. Falls back to a legacy staff qr_slug so older links still resolve.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -17,8 +17,7 @@ Deno.serve(async (req) => {
 
   let slug = "";
   try {
-    const body = await req.json();
-    slug = String(body.slug ?? "").trim();
+    slug = String((await req.json()).slug ?? "").trim();
   } catch {
     slug = "";
   }
@@ -30,17 +29,22 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } }
   );
 
-  const { data: staff } = await admin
-    .from("staff")
-    .select("id, first_name, surname, tenant_id, qr_slug")
-    .eq("qr_slug", slug)
-    .maybeSingle();
-  if (!staff) return json({ found: false });
+  // Resolve the tenant: restaurant review slug first, then a legacy staff slug.
+  let tenantId: string | null = null;
+  const { data: byTenant } = await admin
+    .from("tenants").select("id").eq("review_slug", slug).maybeSingle();
+  if (byTenant) tenantId = byTenant.id as string;
+  if (!tenantId) {
+    const { data: staff } = await admin
+      .from("staff").select("tenant_id").eq("qr_slug", slug).maybeSingle();
+    if (staff) tenantId = staff.tenant_id as string;
+  }
+  if (!tenantId) return json({ found: false });
 
   const { data: tenant } = await admin
     .from("tenants")
     .select("name, gmb_url, place_id, google_invite_min_combined")
-    .eq("id", staff.tenant_id)
+    .eq("id", tenantId)
     .maybeSingle();
 
   const placeUrl = tenant?.place_id
@@ -49,8 +53,6 @@ Deno.serve(async (req) => {
 
   return json({
     found: true,
-    staffId: staff.id,
-    staffFirstName: staff.first_name,
     restaurant: tenant?.name ?? "our restaurant",
     googleInviteMinCombined: tenant?.google_invite_min_combined ?? 7,
     googleReviewUrl: tenant?.gmb_url ?? placeUrl ?? null,

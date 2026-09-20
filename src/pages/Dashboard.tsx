@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { ComponentType } from "react";
-import { ClockIcon, GlobeIcon, RotateIcon, StarIcon, UsersIcon } from "../components/icons";
+import { ClockIcon, GlobeIcon, StarIcon, UsersIcon } from "../components/icons";
 import { Card } from "../components/ui";
 import { useStore } from "../data/store";
 import { TODAY } from "../data/constants";
@@ -37,21 +37,13 @@ function Line({ text }: { text: string }) {
 }
 
 export function Dashboard() {
-  const { reviews, pendingInvites, googleReviews, winbackEntries, contacts, campaigns } =
-    useStore();
+  const { reviews, pendingInvites, googleReviews, contacts, campaigns } = useStore();
 
   const weekAgo = addDays(TODAY, -7);
   const todayReviews = reviews.filter((r) => r.createdAt === TODAY);
   const fixing = reviews.filter((r) => r.status === "fixing").length;
   const newIssues = reviews.filter((r) => r.status === "new").length;
   const googleThisWeek = googleReviews.filter((g) => g.postedAt >= weekAgo).length;
-  const activeOffers = winbackEntries.filter(
-    (e) => !e.claimedAt && !e.expiredAt && e.offerExpiresAt >= TODAY
-  );
-  const expiringSoon = activeOffers.filter((e) => e.offerExpiresAt <= addDays(TODAY, 2)).length;
-  const claimedThisWeek = winbackEntries.filter(
-    (e) => e.claimedAt && e.claimedAt >= weekAgo
-  ).length;
   const newContactsThisWeek = contacts.filter((c) => c.createdAt >= weekAgo).length;
   const activeCampaigns = campaigns.filter((c) => c.status === "Active").length;
 
@@ -103,22 +95,6 @@ export function Dashboard() {
         googleThisWeek
           ? `${plural(googleThisWeek, "review", "reviews")} posted this week.`
           : "Nothing posted on Google yet this week.",
-      ],
-    },
-    {
-      label: "Win back",
-      icon: RotateIcon,
-      tone: "red",
-      to: "/win-back",
-      action: "Open win back",
-      lines: [
-        `${plural(activeOffers.length, "customer is", "customers are")} in win back.`,
-        expiringSoon
-          ? `${plural(expiringSoon, "offer expires", "offers expire")} in the next 2 days.`
-          : "No offers expire in the next 2 days.",
-        claimedThisWeek
-          ? `${plural(claimedThisWeek, "offer was", "offers were")} claimed this week.`
-          : "No offers were claimed this week.",
       ],
     },
     {
